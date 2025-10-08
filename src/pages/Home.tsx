@@ -1,85 +1,45 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, Search, Calendar, TrendingUp } from "lucide-react";
 import EventCard from "../components/EventCard";
+import { fetchEvents } from "../lib/api";
+import type { Event } from "../types";
 
 export default function Home() {
-  const featuredEvents = [
-    {
-      id: "1",
-      title: "Limpeza de Praia",
-      description:
-        "Junte-se a nós para limpar a praia local e proteger o ambiente marinho. Traga luvas e sacos do lixo serão fornecidos.",
-      organization: {
-        id: "org1",
-        name: "EcoAmigos Portugal",
-      },
-      organizationId: "org1",
-      category: "Ambiente",
-      location: {
-        address: "Praia de Carcavelos, Cascais",
-        lat: 38.6755,
-        lng: -9.3389,
-      },
-      date: "2025-11-15",
-      duration: "3 horas",
-      volunteersNeeded: 20,
-      volunteersRegistered: 18,
-      status: "open" as const,
-      imageUrl: null,
-      createdAt: "2024-01-05T09:00:00.000Z",
-      updatedAt: "2024-01-05T09:00:00.000Z",
-    },
-    {
-      id: "2",
-      title: "Apoio a Idosos",
-      description:
-        "Visite e converse com idosos em lares, proporcionando companhia e momentos de alegria.",
-      organization: {
-        id: "org2",
-        name: "Coração Solidário",
-      },
-      organizationId: "org2",
-      category: "Social",
-      location: {
-        address: "Lar de Idosos Santa Casa, Lisboa",
-        lat: 38.7223,
-        lng: -9.1393,
-      },
-      date: "2025-10-20",
-      duration: "2 horas",
-      volunteersNeeded: 10,
-      volunteersRegistered: 9,
-      status: "open" as const,
-      imageUrl: null,
-      createdAt: "2024-02-10T09:00:00.000Z",
-      updatedAt: "2024-02-10T09:00:00.000Z",
-    },
-    {
-      id: "3",
-      title: "Distribuição de Alimentos",
-      description:
-        "Ajude a distribuir alimentos a famílias carenciadas na comunidade local.",
-      organization: {
-        id: "org3",
-        name: "Banco Alimentar",
-      },
-      organizationId: "org3",
-      category: "Humanitário",
-      location: {
-        address: "Centro Comunitário, Porto",
-        lat: 41.1579,
-        lng: -8.6291,
-      },
-      date: "2025-10-18",
-      duration: "4 horas",
-      volunteersNeeded: 15,
-      volunteersRegistered: 14,
-      status: "open" as const,
-      imageUrl: null,
-      createdAt: "2024-03-12T09:00:00.000Z",
-      updatedAt: "2024-03-12T09:00:00.000Z",
-    },
-  ];
+  const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadFeaturedEvents = async () => {
+      try {
+        setEventsError(null);
+        const events = await fetchEvents({ limit: 6 });
+        if (active) {
+          setFeaturedEvents(events);
+        }
+      } catch (error) {
+        console.error("Failed to load featured events", error);
+        if (active) {
+          setEventsError(
+            "Não foi possível carregar os eventos em destaque neste momento."
+          );
+        }
+      } finally {
+        if (active) {
+          setLoadingEvents(false);
+        }
+      }
+    };
+
+    void loadFeaturedEvents();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -169,11 +129,25 @@ export default function Home() {
             Oportunidades populares que precisam de voluntários agora
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
-            {featuredEvents.map((event) => (
-              <Link key={event.id} to={`/events/${event.id}`}>
-                <EventCard event={event} showApplyButton={false} />
-              </Link>
-            ))}
+            {loadingEvents ? (
+              <div className="col-span-full text-center text-gray-500">
+                A carregar eventos em destaque...
+              </div>
+            ) : eventsError ? (
+              <div className="col-span-full text-center text-gray-500">
+                {eventsError}
+              </div>
+            ) : featuredEvents.length > 0 ? (
+              featuredEvents.map((event) => (
+                <Link key={event.id} to={`/events/${event.id}`}>
+                  <EventCard event={event} showApplyButton={false} />
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-full text-center text-gray-500">
+                Ainda não existem eventos disponíveis. Volte em breve!
+              </div>
+            )}
           </div>
           <div className="text-center">
             <Link

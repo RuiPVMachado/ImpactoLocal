@@ -154,12 +154,26 @@ export default function OrganizationDashboard() {
 
     try {
       setUpdatingApplicationId(applicationId);
-      await updateApplicationStatus(applicationId, user.id, status);
+      const { notificationStatus, notificationError } =
+        await updateApplicationStatus(applicationId, user.id, status);
       toast.success(
         status === "approved"
           ? "Candidatura aprovada com sucesso."
           : "Candidatura rejeitada."
       );
+
+      if (status === "approved") {
+        if (notificationStatus === "sent") {
+          toast.success("Email de confirmação enviado ao voluntário.");
+        } else if (notificationStatus === "failed") {
+          toast.error(
+            notificationError ??
+              "A candidatura foi aprovada, mas o email não pôde ser enviado."
+          );
+        } else if (notificationStatus === "skipped" && notificationError) {
+          toast(notificationError, { icon: "ℹ️" });
+        }
+      }
       await loadDashboard();
     } catch (error) {
       console.error("Erro ao atualizar candidatura:", error);

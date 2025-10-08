@@ -110,10 +110,47 @@ npm run typecheck  # Verifica tipos TypeScript
 ### Features Futuras
 
 - 🚧 Google Maps integration
-- 🚧 Email notifications
+- ✅ Email notifications (envio automático ao aprovar voluntários)
 - 🚧 Sistema de reviews
 - 🚧 Gamification
 - 🚧 Mobile app
 - 🚧 Multi-language
+
+## Notificações por Email com Resend
+
+Quando uma organização aprova a candidatura de um voluntário, um email automático é enviado através de uma Edge Function do Supabase que integra com a API do Resend.
+
+### Configuração
+
+1. **Definir variáveis de ambiente no Supabase**
+
+   Configure as variáveis no projeto Supabase (Dashboard › Project Settings › Functions › Environment variables):
+
+   | Nome                            | Descrição                                              |
+   | ------------------------------- | ------------------------------------------------------ |
+   | `RESEND_API_KEY`                | API key do Resend com permissões de envio              |
+   | `RESEND_FROM_EMAIL`             | Endereço "From" verificado no Resend                   |
+   | `RESEND_FROM_NAME` _(opcional)_ | Nome exibido no remetente (por defeito: Impacto Local) |
+
+2. **Deploy da Edge Function**
+
+   Com o [Supabase CLI](https://supabase.com/docs/guides/cli) configurado e autenticado:
+
+   ```bash
+   supabase functions deploy notify-volunteer
+   supabase functions secrets set RESEND_API_KEY="<a sua chave>"
+   supabase functions secrets set RESEND_FROM_EMAIL="no-reply@impactolocal.pt"
+   supabase functions secrets set RESEND_FROM_NAME="Impacto Local"
+   ```
+
+   > Se preferir, as variáveis podem ser geridas diretamente no dashboard web na secção **Edge Functions › Secrets**.
+
+3. **Permitir invocação pela aplicação**
+
+   A função assume que o cliente está autenticado como organização para aprovar candidaturas; a invocação é feita via Supabase Functions no frontend (`notify-volunteer`). Certifique-se de que as políticas RLS para candidaturas continuam a proteger atualizações por utilizadores não autorizados.
+
+4. **Verificar remetente no Resend**
+
+   Confirme que o domínio ou endereço configurado em `RESEND_FROM_EMAIL` está verificado no Resend (Single Sender ou Domain Authentication). Sem essa verificação, os envios serão rejeitados.
 
 Feito com ❤️ para a comunidade de voluntariado em Portugal

@@ -1,4 +1,9 @@
 import { supabase } from "./supabase";
+import {
+  notifyApplicationApproved,
+  notifyApplicationRejected,
+  notifyApplicationSubmitted,
+} from "./notifications";
 import type {
   AdminMetrics,
   Application,
@@ -38,18 +43,18 @@ type UpdateEventPayload = Partial<
   status?: "open" | "closed" | "completed";
 };
 
-type UpdateProfilePayload = {
-  name?: string;
-  phone?: string | null;
-  bio?: string | null;
-  location?: string | null;
-  avatarUrl?: string | null;
-};
-
 type ApplicationPayload = {
   eventId: string;
   volunteerId: string;
   message?: string | null;
+};
+
+type NotificationStatus = "sent" | "failed" | "skipped";
+
+type UpdateApplicationStatusResult = {
+  application: VolunteerApplication;
+  notificationStatus: NotificationStatus;
+  notificationError?: string | null;
 };
 
 type ProfileRow = {
@@ -105,6 +110,36 @@ type ApplicationRow = {
   event?: EventRow | null;
   volunteer?: ProfileSummaryRow | null;
 };
+
+function isPermissionDeniedError(error: unknown): boolean {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    const code = (error as { code: string }).code;
+    if (code === "42501" || code === "PGRST301" || code === "PGRST302") {
+      return true;
+    }
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    const message = (error as { message: string }).message.toLowerCase();
+    return (
+      message.includes("permission denied") ||
+      message.includes("not authorized") ||
+      message.includes("rls")
+    );
+  }
+
+  return false;
+}
 
 const toProfile = (row: ProfileRow): Profile => ({
   id: row.id,
@@ -186,37 +221,10 @@ export async function fetchProfileById(id: string): Promise<Profile | null> {
   return data ? toProfile(data) : null;
 }
 
-export async function updateProfileById(
-  id: string,
-  payload: UpdateProfilePayload
-): Promise<Profile> {
-  const updatePayload = {
-    name: payload.name,
-    phone: payload.phone,
-    bio: payload.bio,
-    location: payload.location,
-    avatar_url: payload.avatarUrl,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .update(updatePayload)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return toProfile(data);
-}
-
 export async function fetchEvents(
   filters: EventFilters = {}
 ): Promise<Event[]> {
-  let query = supabase
-    .from("events")
-    .select(
-      `*,
+  const selectWithOrganization = `*,
         organization:profiles!events_organization_id_fkey(
           id,
           name,
@@ -224,58 +232,172 @@ export async function fetchEvents(
           avatar_url,
           bio,
           type
-        )`
-    )
-    .order("date", { ascending: true });
+        )`;
 
-  if (filters.status) {
-    query = query.eq("status", filters.status);
-  } else {
-    query = query.eq("status", "open");
-  }
+  const applyFilters = (selectStatement: string) => {
+    let query = supabase
+      .from("events")
+      .select(selectStatement)
+      .order("date", { ascending: true });
 
-  if (filters.category && filters.category !== "all") {
-    query = query.eq("category", filters.category);
-  }
+    if (filters.status) {
+      query = query.eq("status", filters.status);
+    } else {
+      query = query.eq("status", "open");
+    }
 
-  if (filters.searchTerm) {
-    query = query.or(
-      `title.ilike.%${filters.searchTerm}%,description.ilike.%${filters.searchTerm}%`
-    );
-  }
+    if (filters.category && filters.category !== "all") {
+      query = query.eq("category", filters.category);
+    }
 
-  if (filters.limit) {
-    query = query.limit(filters.limit);
-  }
+    if (filters.searchTerm) {
+      const term = filters.searchTerm.trim();
+      if (term) {
+        const sanitizedTerm = term.replace(/'/g, "''");
+        query = query.or(
+          `title.ilike.%${sanitizedTerm}%,description.ilike.%${sanitizedTerm}%,address.ilike.%${sanitizedTerm}%`
+        );
+      }
+    }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map(toEvent);
-}
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
 
-export async function fetchEventById(eventId: string): Promise<Event | null> {
-  const { data, error } = await supabase
-    .from("events")
-    .select(
-      `*,
-        organization:profiles!events_organization_id_fkey(
-          id,
-          name,
-          email,
-          avatar_url,
-          bio,
-          type
-        )`
-    )
-    .eq("id", eventId)
-    .single();
+    return query;
+  };
+
+  const { data, error } = await applyFilters(selectWithOrganization);
 
   if (error) {
-    if (error.code === "PGRST116") return null;
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "Falling back to public events query without organization join due to permission error",
+        error
+      );
+      const { data: fallbackData, error: fallbackError } = await applyFilters(
+        "*"
+      );
+
+      if (fallbackError) {
+        throw fallbackError;
+      }
+
+      return (fallbackData ?? []).map((row) =>
+        toEvent(row as unknown as EventRow)
+      );
+    }
+
     throw error;
   }
 
-  return data ? toEvent(data) : null;
+  return (data ?? []).map((row) => toEvent(row as unknown as EventRow));
+}
+
+export async function applyToEvent(
+  payload: ApplicationPayload
+): Promise<Application> {
+  const { data, error } = await supabase
+    .from("applications")
+    .insert({
+      event_id: payload.eventId,
+      volunteer_id: payload.volunteerId,
+      message: payload.message ?? null,
+    })
+    .select(
+      `*,
+        event:events(
+          *,
+          organization:profiles!events_organization_id_fkey(
+            id,
+            name,
+            email,
+            avatar_url,
+            bio,
+            type
+          )
+        ),
+        volunteer:profiles!applications_volunteer_id_fkey(
+          id,
+          name,
+          email,
+          avatar_url,
+          bio,
+          type
+        )`
+    )
+    .single();
+
+  if (error) throw error;
+
+  const application = toApplication(data);
+
+  const organizationEmail = application.event?.organization?.email ?? null;
+  const volunteerEmail = data.volunteer?.email ?? null;
+
+  if (organizationEmail && volunteerEmail && application.event) {
+    void notifyApplicationSubmitted({
+      organizationEmail,
+      volunteerName: data.volunteer?.name ?? "Voluntário",
+      volunteerEmail,
+      eventTitle: application.event.title,
+      eventDate: application.event.date,
+      message: payload.message ?? undefined,
+    });
+  }
+
+  return application;
+}
+
+export async function fetchEventById(eventId: string): Promise<Event | null> {
+  const selectWithOrganization = `*,
+        organization:profiles!events_organization_id_fkey(
+          id,
+          name,
+          email,
+          avatar_url,
+          bio,
+          type
+        )`;
+
+  const executeQuery = async (selectStatement: string) =>
+    supabase
+      .from("events")
+      .select(selectStatement)
+      .eq("id", eventId)
+      .maybeSingle();
+
+  const { data, error } = await executeQuery(selectWithOrganization);
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      return null;
+    }
+
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "Falling back to single event query without organization join due to permission error",
+        error
+      );
+
+      const { data: fallbackData, error: fallbackError } = await executeQuery(
+        "*"
+      );
+
+      if (fallbackError) {
+        if (fallbackError.code === "PGRST116") {
+          return null;
+        }
+        throw fallbackError;
+      }
+
+      return fallbackData ? toEvent(fallbackData as unknown as EventRow) : null;
+    }
+
+    throw error;
+  }
+
+  return data ? toEvent(data as unknown as EventRow) : null;
 }
 
 export async function checkExistingApplication(
@@ -304,36 +426,6 @@ export async function checkExistingApplication(
 
   if (error) throw error;
   return data ? toApplication(data) : null;
-}
-
-export async function applyToEvent(
-  payload: ApplicationPayload
-): Promise<Application> {
-  const { data, error } = await supabase
-    .from("applications")
-    .insert({
-      event_id: payload.eventId,
-      volunteer_id: payload.volunteerId,
-      message: payload.message ?? null,
-    })
-    .select(
-      `*,
-        event:events(
-          *,
-          organization:profiles!events_organization_id_fkey(
-            id,
-            name,
-            email,
-            avatar_url,
-            bio,
-            type
-          )
-        )`
-    )
-    .single();
-
-  if (error) throw error;
-  return toApplication(data);
 }
 
 export async function cancelApplication(
@@ -419,11 +511,12 @@ export async function updateApplicationStatus(
   applicationId: string,
   organizationId: string,
   status: "pending" | "approved" | "rejected"
-): Promise<VolunteerApplication> {
+): Promise<UpdateApplicationStatusResult> {
   const { data, error } = await supabase
     .from("applications")
     .update({ status })
     .eq("id", applicationId)
+    .eq("event.organization_id", organizationId)
     .select(
       `*,
         volunteer:profiles!applications_volunteer_id_fkey(
@@ -436,7 +529,6 @@ export async function updateApplicationStatus(
         ),
         event:events!inner(
           *,
-          organization_id,
           organization:profiles!events_organization_id_fkey(
             id,
             name,
@@ -450,11 +542,73 @@ export async function updateApplicationStatus(
     .single();
 
   if (error) throw error;
-  if (data.event.organization_id !== organizationId) {
-    throw new Error("Not authorized to update this application");
+  if (!data) {
+    throw new Error(
+      "Candidatura não encontrada ou não pertence à organização."
+    );
   }
 
-  return toVolunteerApplication(data);
+  const application = toVolunteerApplication(data as ApplicationRow);
+
+  let notificationStatus: NotificationStatus = "skipped";
+  let notificationError: string | null = null;
+
+  const volunteerEmail = application.volunteer?.email ?? null;
+  const volunteerName = application.volunteer?.name ?? "Voluntário";
+  const eventTitle = application.event?.title;
+  const eventDate = application.event?.date;
+  const organizationName = application.event?.organization?.name ?? undefined;
+  const organizationEmail = application.event?.organization?.email ?? undefined;
+
+  const setNotificationResult = (result: {
+    success: boolean;
+    error?: string;
+  }) => {
+    if (result.success) {
+      notificationStatus = "sent";
+      notificationError = null;
+    } else {
+      notificationStatus = "failed";
+      notificationError = result.error ?? "Falha ao enviar notificação.";
+    }
+  };
+
+  if (status === "approved") {
+    if (volunteerEmail) {
+      const result = await notifyApplicationApproved({
+        volunteerEmail,
+        volunteerName,
+        eventTitle,
+        eventDate,
+        organizationName,
+        organizationEmail,
+      });
+      setNotificationResult(result);
+    } else {
+      notificationStatus = "skipped";
+      notificationError = "O voluntário não tem email associado ao perfil.";
+    }
+  } else if (status === "rejected") {
+    if (volunteerEmail) {
+      const result = await notifyApplicationRejected({
+        volunteerEmail,
+        volunteerName,
+        eventTitle,
+        organizationName,
+        organizationEmail,
+      });
+      setNotificationResult(result);
+    } else {
+      notificationStatus = "skipped";
+      notificationError = "O voluntário não tem email associado ao perfil.";
+    }
+  }
+
+  return {
+    application,
+    notificationStatus,
+    notificationError,
+  };
 }
 
 export async function createEvent(payload: CreateEventPayload): Promise<Event> {
