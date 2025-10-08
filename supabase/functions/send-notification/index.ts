@@ -42,6 +42,13 @@ type NotificationPayload =
   | ApplicationRejectedPayload
   | ApplicationSubmittedPayload;
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
 function isNotificationPayload(
   payload: unknown
 ): payload is NotificationPayload {
@@ -282,7 +289,7 @@ const sendEmail = async (
             status: 400,
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
+              ...corsHeaders,
             },
           }
         );
@@ -301,7 +308,7 @@ const sendEmail = async (
             status: 400,
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
+              ...corsHeaders,
             },
           }
         );
@@ -320,7 +327,7 @@ const sendEmail = async (
             status: 400,
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
+              ...corsHeaders,
             },
           }
         );
@@ -338,7 +345,7 @@ const sendEmail = async (
           status: 400,
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
+            ...corsHeaders,
           },
         }
       );
@@ -390,7 +397,7 @@ const sendEmail = async (
         status: 500,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders,
         },
       }
     );
@@ -413,7 +420,7 @@ const sendEmail = async (
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+        ...corsHeaders,
       },
     }
   );
@@ -425,11 +432,7 @@ serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
+      headers: corsHeaders,
     });
   }
 
@@ -443,7 +446,7 @@ serve(async (request: Request) => {
         status: 405,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders,
         },
       }
     );
@@ -463,7 +466,7 @@ serve(async (request: Request) => {
         status: 400,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders,
         },
       }
     );
@@ -484,7 +487,7 @@ serve(async (request: Request) => {
         status: 500,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders,
         },
       }
     );
@@ -500,7 +503,7 @@ serve(async (request: Request) => {
         status: 400,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders,
         },
       }
     );
