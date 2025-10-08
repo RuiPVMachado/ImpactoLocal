@@ -7,6 +7,7 @@ import {
   Home,
   Users,
   Settings,
+  Heart,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
@@ -47,6 +48,13 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center space-x-6">
+            <Link
+              to="/sobre-nos"
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/60 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+            >
+              <Heart className="h-4 w-4" />
+              <span>Sobre Nós</span>
+            </Link>
             {isAuthenticated ? (
               <>
                 <Link
