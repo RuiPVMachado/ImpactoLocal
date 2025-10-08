@@ -131,6 +131,36 @@ type NotificationRow = {
   created_at: string;
 };
 
+type AdminManagePayload =
+  | {
+      action: "update_profile";
+      id: string;
+      name: string;
+      type: UserRole;
+    }
+  | {
+      action: "delete_profile";
+      id: string;
+    }
+  | {
+      action: "update_event";
+      id: string;
+      updates: {
+        title?: string;
+        status?: Event["status"];
+        volunteersNeeded?: number;
+        date?: string | null;
+      };
+    }
+  | {
+      action: "delete_event";
+      id: string;
+    };
+
+type AdminManageResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error?: string };
+
 const APPLICATION_SELECT = `*,
         event:events(
           *,
@@ -279,6 +309,71 @@ const handleApplicationSubmissionNotification = (
 
   return application;
 };
+
+async function invokeAdminManage<T>(payload: AdminManagePayload): Promise<T> {
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    console.error("Falha ao obter sessão atual", sessionError);
+    throw new Error("Não foi possível validar a sessão do utilizador.");
+  }
+
+  const accessToken = session?.access_token;
+
+  if (!accessToken) {
+    throw new Error("Sessão expirada. Inicie sessão novamente para continuar.");
+  }
+
+  const { data, error } = await supabase.functions.invoke("admin-manage", {
+    body: payload,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (error) {
+    console.error("admin-manage function error", error);
+    if (isPermissionDeniedError(error)) {
+      throw new Error("Não tem permissões para realizar esta ação.");
+    }
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      typeof (error as { status?: unknown }).status === "number"
+    ) {
+      const status = (error as { status: number }).status;
+      if (status === 401 || status === 403) {
+        throw new Error("Não tem permissões para realizar esta ação.");
+      }
+    }
+    const message =
+      typeof error === "object" && error !== null && "message" in error
+        ? ((error as { message?: unknown }).message as string | undefined)
+        : undefined;
+    throw new Error(message ?? "Falha ao comunicar com o servidor.");
+  }
+
+  const response = data as AdminManageResponse<T> | null;
+
+  if (!response) {
+    throw new Error("Resposta inválida do servidor.");
+  }
+
+  if (!response.success) {
+    const message = response.error?.trim();
+    throw new Error(
+      message && message.length > 0
+        ? message
+        : "A operação administrativa falhou."
+    );
+  }
+
+  return response.data;
+}
 
 const parseDurationToHours = (duration: string | null | undefined): number => {
   if (!duration) return 0;
@@ -1220,4 +1315,143 @@ export async function fetchAdminMetrics(): Promise<{
     latestUsers: (latestUsers.data ?? []).map(toProfile),
     latestEvents: (latestEvents.data ?? []).map(toEvent),
   };
+}
+
+const sanitizeSearchTerm = (term?: string | null) =>
+  term ? term.replace(/[\n\r%_]/g, "").trim() : "";
+
+export async function fetchAdminProfiles(params?: {
+  search?: string;
+  type?: UserRole | "all";
+  limit?: number;
+}): Promise<Profile[]> {
+  const { search, type = "all", limit = 100 } = params ?? {};
+  let query = supabase
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (type !== "all") {
+    query = query.eq("type", type);
+  }
+
+  const sanitized = sanitizeSearchTerm(search);
+  if (sanitized) {
+    query = query.or(
+      `name.ilike.%${sanitized}%,email.ilike.%${sanitized}%,id.ilike.%${sanitized}%`
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data ?? []).map(toProfile);
+}
+
+export async function fetchAdminEvents(params?: {
+  search?: string;
+  limit?: number;
+}): Promise<Event[]> {
+  const { search, limit = 100 } = params ?? {};
+
+  let query = supabase
+    .from("events")
+    .select(
+      `*,
+        organization:profiles!events_organization_id_fkey(
+          id,
+          name,
+          email,
+          avatar_url,
+          bio,
+          type
+        )`
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const sanitized = sanitizeSearchTerm(search);
+  if (sanitized) {
+    query = query.or(
+      `title.ilike.%${sanitized}%,category.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data ?? []).map(toEvent);
+}
+
+export async function adminUpdateProfile(params: {
+  id: string;
+  name: string;
+  type: UserRole;
+}): Promise<Profile> {
+  const { id, name, type } = params;
+
+  const { profile } = await invokeAdminManage<{ profile: ProfileRow }>({
+    action: "update_profile",
+    id,
+    name,
+    type,
+  });
+
+  return toProfile(profile);
+}
+
+export async function adminDeleteProfile(profileId: string): Promise<void> {
+  await invokeAdminManage<{ profileId: string }>({
+    action: "delete_profile",
+    id: profileId,
+  });
+}
+
+export async function adminUpdateEvent(
+  eventId: string,
+  updates: {
+    title?: string;
+    status?: Event["status"];
+    volunteersNeeded?: number;
+    date?: string | null;
+  }
+): Promise<Event> {
+  const payload: {
+    title?: string;
+    status?: Event["status"];
+    volunteersNeeded?: number;
+    date?: string | null;
+  } = {};
+
+  if (updates.title !== undefined) {
+    payload.title = updates.title;
+  }
+
+  if (updates.status !== undefined) {
+    payload.status = updates.status;
+  }
+
+  if (updates.volunteersNeeded !== undefined) {
+    payload.volunteersNeeded = updates.volunteersNeeded;
+  }
+
+  if (updates.date !== undefined) {
+    payload.date = updates.date;
+  }
+
+  const { event } = await invokeAdminManage<{ event: EventRow }>({
+    action: "update_event",
+    id: eventId,
+    updates: payload,
+  });
+
+  return toEvent(event);
+}
+
+export async function adminDeleteEvent(eventId: string): Promise<void> {
+  await invokeAdminManage<{ eventId: string }>({
+    action: "delete_event",
+    id: eventId,
+  });
 }
