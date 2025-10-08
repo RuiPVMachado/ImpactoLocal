@@ -41,6 +41,12 @@ const statusConfig: Record<
     color: "bg-rose-100 text-rose-800",
     icon: XCircle,
   },
+  cancelled: {
+    label: "Cancelada",
+    description: "Cancelou a sua participação neste evento.",
+    color: "bg-slate-200 text-slate-700",
+    icon: X,
+  },
 };
 
 const formatDate = (iso?: string | null) => {
@@ -119,11 +125,12 @@ export default function MyApplications() {
 
     try {
       setCancellingId(applicationId);
-      await cancelApplication(applicationId, user.id);
+      const updated = await cancelApplication(applicationId, user.id);
       setApplications((prevApplications: Application[]) =>
-        prevApplications.filter(
-          (currentApplication: Application) =>
-            currentApplication.id !== applicationId
+        prevApplications.map((currentApplication: Application) =>
+          currentApplication.id === updated.id
+            ? { ...currentApplication, ...updated }
+            : currentApplication
         )
       );
       toast.success("Candidatura cancelada com sucesso.");
@@ -286,6 +293,13 @@ export default function MyApplications() {
                               : "Cancelar candidatura"}
                           </button>
                         </div>
+                      )}
+                      {application.status === "cancelled" && (
+                        <p className="mt-3 rounded-lg bg-slate-200/70 px-4 py-3 text-sm text-slate-700">
+                          Cancelou esta candidatura. Se o evento ainda estiver
+                          disponível, pode candidatar-se novamente a partir da
+                          página do evento.
+                        </p>
                       )}
                     </div>
                   </div>

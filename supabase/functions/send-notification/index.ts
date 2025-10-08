@@ -117,7 +117,7 @@ const buildApprovedEmail = (
       ${eventLine}
       ${dateLine}
       ${organizationLine}
-      <p>A organização irá contactá-lo em breve com mais detalhes. Obrigado por fazer parte da comunidade VolunteerHub!</p>
+  <p>A organização irá contactá-lo em breve com mais detalhes. Obrigado por fazer parte da comunidade ImpactoLocal!</p>
       ${contactLine}
       <p>Com os melhores cumprimentos,<br/>${fromName}</p>
     </div>
@@ -135,7 +135,7 @@ const buildApprovedEmail = (
     organizationEmail
       ? `Pode contactar a organização através de ${organizationEmail}.`
       : "",
-    "Obrigado por fazer parte da comunidade VolunteerHub!",
+    "Obrigado por fazer parte da comunidade ImpactoLocal!",
     `Com os melhores cumprimentos,\n${fromName}`,
   ]
     .filter(Boolean)
@@ -178,7 +178,7 @@ const buildRejectedEmail = (
       <p>${greeting}</p>
       ${eventLine}
       ${organizationLine}
-      <p>Agradecemos o seu interesse e encorajamos a candidatar-se a outros eventos na plataforma VolunteerHub.</p>
+  <p>Agradecemos o seu interesse e encorajamos a candidatar-se a outros eventos na plataforma ImpactoLocal.</p>
       ${contactLine}
       <p>Com os melhores cumprimentos,<br/>${fromName}</p>
     </div>
@@ -190,7 +190,7 @@ const buildRejectedEmail = (
       ? `A sua candidatura ao evento "${eventTitle}" não foi aprovada neste momento.`
       : "A sua candidatura não foi aprovada neste momento.",
     organizationName ? `Organização: ${organizationName}` : "",
-    "Agradecemos o seu interesse e encorajamos a candidatar-se a outros eventos na plataforma VolunteerHub.",
+    "Agradecemos o seu interesse e encorajamos a candidatar-se a outros eventos na plataforma ImpactoLocal.",
     organizationEmail ? `Para mais informações: ${organizationEmail}` : "",
     `Com os melhores cumprimentos,\n${fromName}`,
   ]

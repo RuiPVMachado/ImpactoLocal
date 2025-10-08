@@ -1,19 +1,18 @@
 import { supabase } from "./supabase";
-import {
-  notifyApplicationApproved,
-  notifyApplicationRejected,
-  notifyApplicationSubmitted,
-} from "./notifications";
+import { notifyApplicationSubmitted } from "./notifications";
 import type {
   AdminMetrics,
   Application,
   ApplicationStats,
   Event,
+  Notification,
   OrganizationDashboardSummary,
   Profile,
   ProfileSummary,
   UserRole,
   VolunteerApplication,
+  ApplicationStatus,
+  VolunteerStatistics,
 } from "../types";
 
 type EventFilters = {
@@ -47,6 +46,15 @@ type ApplicationPayload = {
   eventId: string;
   volunteerId: string;
   message?: string | null;
+};
+
+type UpdateProfilePayload = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  bio?: string | null;
+  location?: string | null;
 };
 
 type NotificationStatus = "sent" | "failed" | "skipped";
@@ -103,13 +111,46 @@ type ApplicationRow = {
   id: string;
   event_id: string;
   volunteer_id: string;
-  status: "pending" | "approved" | "rejected";
+  status: ApplicationStatus;
   applied_at: string;
   updated_at: string;
   message?: string | null;
   event?: EventRow | null;
   volunteer?: ProfileSummaryRow | null;
 };
+
+type NotificationRow = {
+  id: string;
+  user_id: string;
+  type: Notification["type"];
+  title: string;
+  message: string;
+  status?: ApplicationStatus | null;
+  link?: string | null;
+  read: boolean;
+  created_at: string;
+};
+
+const APPLICATION_SELECT = `*,
+        event:events(
+          *,
+          organization:profiles!events_organization_id_fkey(
+            id,
+            name,
+            email,
+            avatar_url,
+            bio,
+            type
+          )
+        ),
+        volunteer:profiles!applications_volunteer_id_fkey(
+          id,
+          name,
+          email,
+          avatar_url,
+          bio,
+          type
+        )`;
 
 function isPermissionDeniedError(error: unknown): boolean {
   if (
@@ -206,6 +247,158 @@ const toVolunteerApplication = (row: ApplicationRow): VolunteerApplication => ({
   volunteer: toProfileSummary(row.volunteer),
 });
 
+const toNotification = (row: NotificationRow): Notification => ({
+  id: row.id,
+  userId: row.user_id,
+  type: row.type,
+  title: row.title,
+  message: row.message,
+  status: row.status ?? null,
+  link: row.link ?? null,
+  read: row.read ?? false,
+  createdAt: row.created_at,
+});
+
+const handleApplicationSubmissionNotification = (
+  application: VolunteerApplication,
+  messageOverride?: string
+): VolunteerApplication => {
+  const organizationEmail = application.event?.organization?.email ?? null;
+  const volunteerEmail = application.volunteer?.email ?? null;
+
+  if (organizationEmail && volunteerEmail && application.event) {
+    void notifyApplicationSubmitted({
+      organizationEmail,
+      volunteerName: application.volunteer?.name ?? "Voluntário",
+      volunteerEmail,
+      eventTitle: application.event.title,
+      eventDate: application.event.date,
+      message: messageOverride ?? application.message ?? undefined,
+    });
+  }
+
+  return application;
+};
+
+const parseDurationToHours = (duration: string | null | undefined): number => {
+  if (!duration) return 0;
+
+  const normalized = duration.trim().toLowerCase();
+  if (!normalized) return 0;
+
+  const colonMatch = normalized.match(/^\s*(\d{1,2})[:h](\d{1,2})\s*$/);
+  if (colonMatch) {
+    const hours = Number.parseInt(colonMatch[1], 10);
+    const minutes = Number.parseInt(colonMatch[2], 10);
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+      return Math.max(0, hours + minutes / 60);
+    }
+  }
+
+  let totalHours = 0;
+
+  const hourMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*h/);
+  if (hourMatch) {
+    const value = Number.parseFloat(hourMatch[1].replace(",", "."));
+    if (Number.isFinite(value)) {
+      totalHours += value;
+    }
+  }
+
+  const minuteMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s*m/);
+  if (minuteMatch) {
+    const value = Number.parseFloat(minuteMatch[1].replace(",", "."));
+    if (Number.isFinite(value)) {
+      totalHours += value / 60;
+    }
+  }
+
+  if (totalHours > 0) {
+    return Math.max(0, totalHours);
+  }
+
+  const numericMatch = normalized.match(/\d+(?:[.,]\d+)?/);
+  if (numericMatch) {
+    const value = Number.parseFloat(numericMatch[0].replace(",", "."));
+    if (Number.isFinite(value)) {
+      if (normalized.includes("min")) {
+        return Math.max(0, value / 60);
+      }
+      return Math.max(0, value);
+    }
+  }
+
+  return 0;
+};
+
+type ManageApplicationAction = "cancel" | "approve" | "reject" | "reapply";
+
+type ManageApplicationInvokeResponse = {
+  success: boolean;
+  error?: string;
+  data?: {
+    application: ApplicationRow;
+    notificationStatus?: NotificationStatus;
+    notificationError?: string | null;
+  };
+};
+
+async function invokeManageApplication(params: {
+  action: ManageApplicationAction;
+  applicationId: string;
+  actorId: string;
+  message?: string;
+}): Promise<{
+  application: VolunteerApplication;
+  notificationStatus: NotificationStatus;
+  notificationError: string | null;
+}> {
+  const { action, applicationId, actorId, message } = params;
+
+  const { data, error } = await supabase.functions.invoke(
+    "manage-application",
+    {
+      body: {
+        action,
+        applicationId,
+        actorId,
+        ...(message !== undefined ? { message } : {}),
+      },
+    }
+  );
+
+  if (error) {
+    console.error("Failed to invoke manage-application function", {
+      action,
+      applicationId,
+      actorId,
+      error,
+    });
+    throw error;
+  }
+
+  const payload = data as ManageApplicationInvokeResponse | null;
+
+  if (!payload?.success || !payload.data) {
+    const reason = payload?.error ?? "Resposta inválida do servidor.";
+    console.error("manage-application returned an error", {
+      action,
+      applicationId,
+      actorId,
+      error: reason,
+    });
+    throw new Error(reason);
+  }
+
+  const { application, notificationStatus, notificationError } = payload.data;
+
+  return {
+    application: toVolunteerApplication(application),
+    notificationStatus: notificationStatus ?? "skipped",
+    notificationError: notificationError ?? null,
+  };
+}
+
 export async function fetchProfileById(id: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
@@ -219,6 +412,77 @@ export async function fetchProfileById(id: string): Promise<Profile | null> {
   }
 
   return data ? toProfile(data) : null;
+}
+
+export async function updateProfile(
+  payload: UpdateProfilePayload
+): Promise<Profile> {
+  const normalizeOptional = (
+    value: string | null | undefined
+  ): string | null => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  const { id } = payload;
+  const name = payload.name.trim();
+  const email = payload.email.trim().toLowerCase();
+  const phone = normalizeOptional(payload.phone);
+  const bio = normalizeOptional(payload.bio);
+  const location = normalizeOptional(payload.location);
+
+  if (!id) {
+    throw new Error("ID do perfil é obrigatório.");
+  }
+
+  if (!name) {
+    throw new Error("O nome é obrigatório.");
+  }
+
+  if (!email) {
+    throw new Error("O email é obrigatório.");
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      name,
+      email,
+      phone,
+      bio,
+      location,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select("*")
+    .maybeSingle<ProfileRow>();
+
+  if (error) {
+    console.error("Failed to update profile", error);
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error("Perfil não encontrado.");
+  }
+
+  const metadata: Record<string, string | undefined> = {
+    name,
+    phone: phone ?? undefined,
+    bio: bio ?? undefined,
+    location: location ?? undefined,
+  };
+
+  const { error: authMetadataError } = await supabase.auth.updateUser({
+    data: metadata,
+  });
+
+  if (authMetadataError) {
+    console.warn("Failed to update auth metadata", authMetadataError);
+  }
+
+  return toProfile(data);
 }
 
 export async function fetchEvents(
@@ -297,6 +561,35 @@ export async function fetchEvents(
 export async function applyToEvent(
   payload: ApplicationPayload
 ): Promise<Application> {
+  const existingResponse = await supabase
+    .from("applications")
+    .select(APPLICATION_SELECT)
+    .eq("event_id", payload.eventId)
+    .eq("volunteer_id", payload.volunteerId)
+    .maybeSingle<ApplicationRow>();
+
+  if (existingResponse.error) throw existingResponse.error;
+
+  const existingApplication = existingResponse.data ?? null;
+
+  if (existingApplication) {
+    if (existingApplication.status !== "cancelled") {
+      throw new Error("Já existe uma candidatura ativa para este evento.");
+    }
+
+    const { application: reactivated } = await invokeManageApplication({
+      action: "reapply",
+      applicationId: existingApplication.id,
+      actorId: payload.volunteerId,
+      message: payload.message ?? undefined,
+    });
+
+    return handleApplicationSubmissionNotification(
+      reactivated,
+      payload.message ?? undefined
+    );
+  }
+
   const { data, error } = await supabase
     .from("applications")
     .insert({
@@ -304,47 +597,15 @@ export async function applyToEvent(
       volunteer_id: payload.volunteerId,
       message: payload.message ?? null,
     })
-    .select(
-      `*,
-        event:events(
-          *,
-          organization:profiles!events_organization_id_fkey(
-            id,
-            name,
-            email,
-            avatar_url,
-            bio,
-            type
-          )
-        ),
-        volunteer:profiles!applications_volunteer_id_fkey(
-          id,
-          name,
-          email,
-          avatar_url,
-          bio,
-          type
-        )`
-    )
-    .single();
+    .select(APPLICATION_SELECT)
+    .single<ApplicationRow>();
 
   if (error) throw error;
 
-  const application = toApplication(data);
-
-  const organizationEmail = application.event?.organization?.email ?? null;
-  const volunteerEmail = data.volunteer?.email ?? null;
-
-  if (organizationEmail && volunteerEmail && application.event) {
-    void notifyApplicationSubmitted({
-      organizationEmail,
-      volunteerName: data.volunteer?.name ?? "Voluntário",
-      volunteerEmail,
-      eventTitle: application.event.title,
-      eventDate: application.event.date,
-      message: payload.message ?? undefined,
-    });
-  }
+  const application = handleApplicationSubmissionNotification(
+    toVolunteerApplication(data),
+    payload.message ?? undefined
+  );
 
   return application;
 }
@@ -406,20 +667,7 @@ export async function checkExistingApplication(
 ): Promise<Application | null> {
   const { data, error } = await supabase
     .from("applications")
-    .select(
-      `*,
-        event:events(
-          *,
-          organization:profiles!events_organization_id_fkey(
-            id,
-            name,
-            email,
-            avatar_url,
-            bio,
-            type
-          )
-        )`
-    )
+    .select(APPLICATION_SELECT)
     .eq("event_id", eventId)
     .eq("volunteer_id", volunteerId)
     .maybeSingle();
@@ -431,14 +679,14 @@ export async function checkExistingApplication(
 export async function cancelApplication(
   applicationId: string,
   volunteerId: string
-): Promise<void> {
-  const { error } = await supabase
-    .from("applications")
-    .delete()
-    .eq("id", applicationId)
-    .eq("volunteer_id", volunteerId);
+): Promise<Application> {
+  const { application } = await invokeManageApplication({
+    action: "cancel",
+    applicationId,
+    actorId: volunteerId,
+  });
 
-  if (error) throw error;
+  return application;
 }
 
 export async function fetchApplicationsByVolunteer(
@@ -446,20 +694,7 @@ export async function fetchApplicationsByVolunteer(
 ): Promise<Application[]> {
   const { data, error } = await supabase
     .from("applications")
-    .select(
-      `*,
-        event:events(
-          *,
-          organization:profiles!events_organization_id_fkey(
-            id,
-            name,
-            email,
-            avatar_url,
-            bio,
-            type
-          )
-        )`
-    )
+    .select(APPLICATION_SELECT)
     .eq("volunteer_id", volunteerId)
     .order("applied_at", { ascending: false });
 
@@ -467,9 +702,144 @@ export async function fetchApplicationsByVolunteer(
   return (data ?? []).map(toApplication);
 }
 
+export async function fetchVolunteerStatistics(
+  volunteerId: string
+): Promise<VolunteerStatistics> {
+  const { data, error } = await supabase
+    .from("applications")
+    .select(
+      `status,
+        event:events!inner(
+          id,
+          date,
+          duration,
+          status
+        )`
+    )
+    .eq("volunteer_id", volunteerId);
+
+  if (error) throw error;
+
+  type ApplicationWithEvent = {
+    status: ApplicationStatus;
+    event:
+      | {
+          id?: string | null;
+          date?: string | null;
+          duration?: string | null;
+          status?: Event["status"] | null;
+        }
+      | Array<{
+          id?: string | null;
+          date?: string | null;
+          duration?: string | null;
+          status?: Event["status"] | null;
+        }>
+      | null;
+  };
+
+  const rows = (data ?? []) as ApplicationWithEvent[];
+  const now = new Date();
+
+  let totalHoursAccumulator = 0;
+  let eventsAttended = 0;
+  let eventsCompleted = 0;
+
+  for (const row of rows) {
+    const rawEvent = row.event;
+    const event = Array.isArray(rawEvent)
+      ? rawEvent[0] ?? null
+      : rawEvent ?? null;
+    if (!event) continue;
+
+    const eventDate = event.date ? new Date(event.date) : null;
+    const eventDateValid =
+      eventDate !== null && !Number.isNaN(eventDate.getTime());
+    const hasEventPassed = eventDateValid
+      ? eventDate.getTime() <= now.getTime()
+      : false;
+
+    const isApproved = row.status === "approved";
+    const isEventCompleted = event.status === "completed";
+
+    if (isApproved && (hasEventPassed || isEventCompleted)) {
+      eventsAttended += 1;
+      totalHoursAccumulator += parseDurationToHours(event.duration);
+    }
+
+    if (isApproved && isEventCompleted) {
+      eventsCompleted += 1;
+    }
+  }
+
+  const totalApplications = rows.length;
+  const totalVolunteerHours = Math.max(
+    0,
+    Math.round(totalHoursAccumulator * 10) / 10
+  );
+  const participationRate =
+    totalApplications > 0
+      ? Math.min(1, Math.max(0, eventsAttended / totalApplications))
+      : 0;
+
+  return {
+    totalVolunteerHours,
+    eventsAttended,
+    eventsCompleted,
+    participationRate,
+    totalApplications,
+  };
+}
+
+export async function fetchNotifications(
+  userId: string,
+  options: { unreadOnly?: boolean } = {}
+): Promise<Notification[]> {
+  if (!userId) return [];
+
+  const { unreadOnly = false } = options;
+
+  let query = supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (unreadOnly) {
+    query = query.eq("read", false);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Failed to fetch notifications", error);
+    throw error;
+  }
+
+  return (data ?? []).map((row) => toNotification(row as NotificationRow));
+}
+
+export async function markNotificationsAsRead(
+  notificationIds: string[]
+): Promise<void> {
+  if (notificationIds.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read: true })
+    .in("id", notificationIds);
+
+  if (error) {
+    console.error("Failed to mark notifications as read", error);
+    throw error;
+  }
+}
+
 export async function fetchApplicationsForOrganization(
   organizationId: string,
-  status: "pending" | "approved" | "rejected" | "all" = "all"
+  status: ApplicationStatus | "all" = "all"
 ): Promise<VolunteerApplication[]> {
   let query = supabase
     .from("applications")
@@ -512,97 +882,15 @@ export async function updateApplicationStatus(
   organizationId: string,
   status: "pending" | "approved" | "rejected"
 ): Promise<UpdateApplicationStatusResult> {
-  const { data, error } = await supabase
-    .from("applications")
-    .update({ status })
-    .eq("id", applicationId)
-    .eq("event.organization_id", organizationId)
-    .select(
-      `*,
-        volunteer:profiles!applications_volunteer_id_fkey(
-          id,
-          name,
-          email,
-          avatar_url,
-          bio,
-          type
-        ),
-        event:events!inner(
-          *,
-          organization:profiles!events_organization_id_fkey(
-            id,
-            name,
-            email,
-            avatar_url,
-            bio,
-            type
-          )
-        )`
-    )
-    .single();
+  const action: ManageApplicationAction =
+    status === "approved" ? "approve" : "reject";
 
-  if (error) throw error;
-  if (!data) {
-    throw new Error(
-      "Candidatura não encontrada ou não pertence à organização."
-    );
-  }
-
-  const application = toVolunteerApplication(data as ApplicationRow);
-
-  let notificationStatus: NotificationStatus = "skipped";
-  let notificationError: string | null = null;
-
-  const volunteerEmail = application.volunteer?.email ?? null;
-  const volunteerName = application.volunteer?.name ?? "Voluntário";
-  const eventTitle = application.event?.title;
-  const eventDate = application.event?.date;
-  const organizationName = application.event?.organization?.name ?? undefined;
-  const organizationEmail = application.event?.organization?.email ?? undefined;
-
-  const setNotificationResult = (result: {
-    success: boolean;
-    error?: string;
-  }) => {
-    if (result.success) {
-      notificationStatus = "sent";
-      notificationError = null;
-    } else {
-      notificationStatus = "failed";
-      notificationError = result.error ?? "Falha ao enviar notificação.";
-    }
-  };
-
-  if (status === "approved") {
-    if (volunteerEmail) {
-      const result = await notifyApplicationApproved({
-        volunteerEmail,
-        volunteerName,
-        eventTitle,
-        eventDate,
-        organizationName,
-        organizationEmail,
-      });
-      setNotificationResult(result);
-    } else {
-      notificationStatus = "skipped";
-      notificationError = "O voluntário não tem email associado ao perfil.";
-    }
-  } else if (status === "rejected") {
-    if (volunteerEmail) {
-      const result = await notifyApplicationRejected({
-        volunteerEmail,
-        volunteerName,
-        eventTitle,
-        organizationName,
-        organizationEmail,
-      });
-      setNotificationResult(result);
-    } else {
-      notificationStatus = "skipped";
-      notificationError = "O voluntário não tem email associado ao perfil.";
-    }
-  }
+  const { application, notificationStatus, notificationError } =
+    await invokeManageApplication({
+      action,
+      applicationId,
+      actorId: organizationId,
+    });
 
   return {
     application,
@@ -735,6 +1023,7 @@ export async function fetchOrganizationDashboard(
   upcomingEvents: Event[];
   pendingApplications: VolunteerApplication[];
   applicationStats: ApplicationStats;
+  applicationsByEvent: Record<string, ApplicationStats>;
 }> {
   const [eventsResponse, applications] = await Promise.all([
     supabase
@@ -783,10 +1072,31 @@ export async function fetchOrganizationDashboard(
       if (application.status === "pending") acc.pending += 1;
       if (application.status === "approved") acc.approved += 1;
       if (application.status === "rejected") acc.rejected += 1;
+      if (application.status === "cancelled") acc.cancelled += 1;
       return acc;
     },
-    { pending: 0, approved: 0, rejected: 0 }
+    { pending: 0, approved: 0, rejected: 0, cancelled: 0 }
   );
+
+  const applicationsByEvent = organizationApplications.reduce<
+    Record<string, ApplicationStats>
+  >((acc, application) => {
+    const eventId = application.eventId;
+    if (!eventId) {
+      return acc;
+    }
+
+    if (!acc[eventId]) {
+      acc[eventId] = { pending: 0, approved: 0, rejected: 0, cancelled: 0 };
+    }
+
+    if (application.status === "pending") acc[eventId].pending += 1;
+    if (application.status === "approved") acc[eventId].approved += 1;
+    if (application.status === "rejected") acc[eventId].rejected += 1;
+    if (application.status === "cancelled") acc[eventId].cancelled += 1;
+
+    return acc;
+  }, {});
 
   const upcomingEventIds = events
     .filter((event) => new Date(event.date) >= new Date())
@@ -831,6 +1141,7 @@ export async function fetchOrganizationDashboard(
     upcomingEvents: mappedUpcoming,
     pendingApplications,
     applicationStats,
+    applicationsByEvent,
   };
 }
 

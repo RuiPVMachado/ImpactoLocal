@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Heart,
+  MapPin,
   LogOut,
   User,
   Calendar,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -34,10 +35,13 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <Heart className="h-8 w-8 text-emerald-600" />
+            <Link to="/" className="flex items-center space-x-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
+                <MapPin className="h-6 w-6 text-emerald-600" />
+              </div>
               <span className="text-2xl font-bold text-gray-900">
-                VolunteerHub
+                <span className="text-emerald-600">Impacto</span>
+                <span>Local</span>
               </span>
             </Link>
           </div>
@@ -52,6 +56,8 @@ export default function Navbar() {
                   <Calendar className="h-5 w-5" />
                   <span>Eventos</span>
                 </Link>
+
+                <NotificationBell />
 
                 {user?.type === "volunteer" && (
                   <>

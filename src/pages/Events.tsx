@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Filter, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import EventCard from "../components/EventCard";
-import { useAuth } from "../context/useAuth";
-import { applyToEvent, fetchEvents } from "../lib/api";
+import { fetchEvents } from "../lib/api";
 import type { Event } from "../types";
 
 const categories = [
@@ -20,7 +19,6 @@ const categories = [
 
 export default function Events() {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [events, setEvents] = useState<Event[]>([]);
@@ -79,37 +77,6 @@ export default function Events() {
       toast.error("Não foi possível atualizar os eventos.");
     } finally {
       setRefreshing(false);
-    }
-  };
-
-  const handleApply = async (eventId: string) => {
-    if (!isAuthenticated || !user) {
-      toast.error(
-        "É necessário iniciar sessão como voluntário para candidatar."
-      );
-      navigate("/login");
-      return;
-    }
-
-    if (user.type !== "volunteer") {
-      toast.error("Apenas voluntários podem candidatar-se a eventos.");
-      return;
-    }
-
-    try {
-      await applyToEvent({ eventId, volunteerId: user.id });
-      toast.success("Candidatura enviada com sucesso! Aguardando aprovação.");
-    } catch (error: unknown) {
-      if (typeof error === "object" && error !== null && "code" in error) {
-        const supabaseError = error as { code?: string };
-        if (supabaseError.code === "23505") {
-          toast.error("Já se candidatou a este evento.");
-          return;
-        }
-      }
-
-      console.error("Erro ao candidatar:", error);
-      toast.error("Não foi possível submeter a candidatura.");
     }
   };
 
@@ -194,8 +161,6 @@ export default function Events() {
               <EventCard
                 key={event.id}
                 event={event}
-                onApply={handleApply}
-                showApplyButton
                 onClick={() => handleEventClick(event.id)}
               />
             ))}

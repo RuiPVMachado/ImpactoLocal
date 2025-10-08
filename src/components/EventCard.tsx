@@ -1,19 +1,13 @@
 import { Calendar, MapPin, Users, Clock, ArrowRight } from "lucide-react";
+import { formatDurationWithHours } from "../lib/formatters";
 import { Event } from "../types";
 
 interface EventCardProps {
   event: Event;
-  onApply?: (eventId: string) => void;
-  showApplyButton?: boolean;
   onClick?: () => void;
 }
 
-export default function EventCard({
-  event,
-  onApply,
-  showApplyButton = true,
-  onClick,
-}: EventCardProps) {
+export default function EventCard({ event, onClick }: EventCardProps) {
   return (
     <div
       className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition cursor-pointer"
@@ -78,7 +72,7 @@ export default function EventCard({
 
           <div className="flex items-center text-sm text-gray-600">
             <Clock className="h-4 w-4 mr-2 text-emerald-600" />
-            <span>{event.duration}</span>
+            <span>{formatDurationWithHours(event.duration)}</span>
           </div>
         </div>
 
@@ -93,22 +87,17 @@ export default function EventCard({
             </span>
           </div>
 
-          {showApplyButton && event.status === "open" ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onApply?.(event.id);
-              }}
-              className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition text-sm font-semibold"
-            >
-              Candidatar
-            </button>
-          ) : (
-            <button className="flex items-center text-emerald-600 text-sm font-semibold hover:text-emerald-700 transition">
-              Ver Detalhes
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(eventClick) => {
+              eventClick.stopPropagation();
+              onClick?.();
+            }}
+            className="flex items-center text-emerald-600 text-sm font-semibold hover:text-emerald-700 transition"
+          >
+            Ver Detalhes
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </button>
         </div>
       </div>
     </div>

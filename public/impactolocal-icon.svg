@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">ImpactoLocal Favicon</title>
+  <desc id="desc">Ícone circular verde com as letras I e L estilizadas.</desc>
+  <defs>
+    <linearGradient id="impactoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="none" stroke-width="1">
+    <circle cx="64" cy="64" r="60" fill="url(#impactoGradient)" />
+    <rect x="48" y="32" width="12" height="64" rx="6" fill="#ecfdf5" />
+    <path d="M68 92V32h28v12H80v48z" fill="#ecfdf5" />
+  </g>
+</svg>

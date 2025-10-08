@@ -8,6 +8,8 @@ import {
   Building,
   ArrowLeft,
   Mail,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import MapPlaceholder from "../components/MapPlaceholder";
@@ -17,8 +19,8 @@ import {
   checkExistingApplication,
   fetchEventById,
 } from "../lib/api";
-import { sendNotification } from "../lib/notifications";
-import type { Event } from "../types";
+import { formatDurationWithHours } from "../lib/formatters";
+import type { ApplicationStatus, Event } from "../types";
 
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
@@ -27,8 +29,9 @@ export default function EventDetails() {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [hasApplied, setHasApplied] = useState(false);
   const [message, setMessage] = useState("");
+  const [applicationStatus, setApplicationStatus] =
+    useState<ApplicationStatus | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -65,11 +68,16 @@ export default function EventDetails() {
 
   useEffect(() => {
     const verifyApplication = async () => {
-      if (!event || !user || user.type !== "volunteer") return;
+      if (!event || !user || user.type !== "volunteer") {
+        setApplicationStatus(null);
+        return;
+      }
       try {
         const existing = await checkExistingApplication(event.id, user.id);
         if (existing) {
-          setHasApplied(true);
+          setApplicationStatus(existing.status);
+        } else {
+          setApplicationStatus(null);
         }
       } catch (error) {
         console.error("Erro ao verificar candidatura existente:", error);
@@ -93,35 +101,38 @@ export default function EventDetails() {
       return;
     }
 
-    if (hasApplied) {
-      toast("Já tem uma candidatura pendente para este evento.");
+    if (event.status !== "open") {
+      toast("Este evento não está a aceitar candidaturas.");
+      return;
+    }
+
+    if (applicationStatus === "pending") {
+      toast("A sua candidatura já está pendente de aprovação.");
+      return;
+    }
+
+    if (applicationStatus === "approved") {
+      toast.success("A sua participação já foi confirmada para este evento.");
+      return;
+    }
+
+    if (applicationStatus === "rejected") {
+      toast.error("A sua candidatura foi rejeitada para este evento.");
       return;
     }
 
     try {
       setApplying(true);
-      await applyToEvent({
+      const application = await applyToEvent({
         eventId: event.id,
         volunteerId: user.id,
         message: message.trim() ? message.trim() : undefined,
       });
-      setHasApplied(true);
+      setApplicationStatus(application.status as ApplicationStatus);
+      setMessage("");
       toast.success(
         "Candidatura enviada! Aguardando aprovação da organização."
       );
-
-      if (event.organization?.email) {
-        await sendNotification({
-          type: "application_submitted",
-          title: `Nova candidatura: ${event.title}`,
-          message: `${user.name} submeteu uma candidatura ao evento ${event.title}.`,
-          recipients: [event.organization.email],
-          metadata: {
-            eventId: event.id,
-            volunteerId: user.id,
-          },
-        });
-      }
     } catch (error: unknown) {
       if (typeof error === "object" && error !== null && "code" in error) {
         const supabaseError = error as { code?: string; message?: string };
@@ -143,11 +154,81 @@ export default function EventDetails() {
     }
   };
 
-  const applicationDisabled = useMemo(() => {
-    if (!event) return true;
-    if (event.status !== "open") return true;
-    return hasApplied;
-  }, [event, hasApplied]);
+  const applicationState = useMemo(() => {
+    if (!event) {
+      return {
+        hidden: true,
+        disabled: true,
+        label: "",
+        tooltip: undefined as string | undefined,
+        className: "",
+      };
+    }
+
+    if (event.status !== "open") {
+      return {
+        hidden: false,
+        disabled: true,
+        label:
+          event.status === "completed"
+            ? "Evento concluído"
+            : "Candidaturas encerradas",
+        tooltip: "As candidaturas não estão abertas para este evento.",
+        className:
+          "flex-1 rounded-lg bg-gray-200 px-8 py-4 text-lg font-semibold text-gray-600 cursor-not-allowed",
+      };
+    }
+
+    if (applicationStatus === "approved") {
+      return {
+        hidden: true,
+        disabled: true,
+        label: "",
+        tooltip: undefined,
+        className: "",
+      };
+    }
+
+    if (applicationStatus === "pending") {
+      return {
+        hidden: false,
+        disabled: true,
+        label: "Candidatura pendente",
+        tooltip: "A candidatura está a aguardar resposta da organização.",
+        className:
+          "flex-1 rounded-lg bg-amber-500 px-8 py-4 text-lg font-semibold text-white cursor-not-allowed",
+      };
+    }
+
+    if (applicationStatus === "rejected") {
+      return {
+        hidden: false,
+        disabled: true,
+        label: "Candidatura rejeitada",
+        tooltip: "Esta candidatura foi rejeitada pela organização.",
+        className:
+          "flex-1 rounded-lg bg-rose-600 px-8 py-4 text-lg font-semibold text-white cursor-not-allowed",
+      };
+    }
+
+    const awaitingReapply = applicationStatus === "cancelled";
+
+    return {
+      hidden: false,
+      disabled: applying,
+      label: applying
+        ? "A candidatar..."
+        : awaitingReapply
+        ? "Candidatar novamente"
+        : "Candidatar a Este Evento",
+      tooltip: undefined,
+      className:
+        "flex-1 rounded-lg bg-emerald-600 px-8 py-4 text-lg font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60",
+    };
+  }, [event, applicationStatus, applying]);
+
+  const showRejectionNotice = applicationStatus === "rejected";
+  const showParticipationBadge = applicationStatus === "approved";
 
   if (loading) {
     return (
@@ -244,7 +325,9 @@ export default function EventDetails() {
                 <Clock className="h-5 w-5 text-emerald-600" />
                 <div>
                   <p className="text-sm text-gray-500">Duração</p>
-                  <p className="font-semibold">{event.duration}</p>
+                  <p className="font-semibold">
+                    {formatDurationWithHours(event.duration) || "—"}
+                  </p>
                 </div>
               </div>
 
@@ -289,6 +372,33 @@ export default function EventDetails() {
             </div>
 
             <div className="space-y-4">
+              {showRejectionNotice && (
+                <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <AlertTriangle className="mt-0.5 h-5 w-5" />
+                  <div>
+                    <p className="font-semibold">Candidatura rejeitada</p>
+                    <p className="mt-1">
+                      Já submeteu uma candidatura que foi rejeitada. Explore
+                      outros eventos ou contacte a organização para mais
+                      detalhes.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {showParticipationBadge && (
+                <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5" />
+                  <div>
+                    <p className="font-semibold">Participação confirmada</p>
+                    <p className="mt-1">
+                      A sua presença foi confirmada pela organização. Consulte o
+                      email para mais informações.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <MapPlaceholder
                 address={event.location.address}
                 lat={event.location.lat ?? undefined}
@@ -296,17 +406,17 @@ export default function EventDetails() {
               />
 
               <div className="flex flex-col md:flex-row gap-4">
-                <button
-                  onClick={handleApply}
-                  disabled={applicationDisabled || applying}
-                  className="flex-1 bg-emerald-600 text-white px-8 py-4 rounded-lg hover:bg-emerald-700 transition font-semibold text-lg disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {hasApplied
-                    ? "Candidatura enviada"
-                    : applying
-                    ? "A candidatar..."
-                    : "Candidatar a Este Evento"}
-                </button>
+                {!applicationState.hidden && (
+                  <button
+                    onClick={handleApply}
+                    disabled={applicationState.disabled}
+                    title={applicationState.tooltip}
+                    className={applicationState.className}
+                    type="button"
+                  >
+                    {applicationState.label}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() =>
@@ -316,7 +426,9 @@ export default function EventDetails() {
                       url: window.location.href,
                     })
                   }
-                  className="px-8 py-4 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-lg"
+                  className={`px-8 py-4 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-lg ${
+                    applicationState.hidden ? "md:flex-1" : ""
+                  }`}
                 >
                   Partilhar
                 </button>

@@ -55,6 +55,42 @@ type StatCard = {
   valueClass: string;
 };
 
+type StatusSummaryItem = {
+  key: "pending" | "approved" | "rejected" | "cancelled";
+  label: string;
+  value: number;
+  colorClass: string;
+};
+
+const buildStatusSummary = (
+  stats?: ApplicationStats | null
+): StatusSummaryItem[] => [
+  {
+    key: "pending",
+    label: "Pendentes",
+    value: stats?.pending ?? 0,
+    colorClass: "bg-amber-100 text-amber-700",
+  },
+  {
+    key: "approved",
+    label: "Aprovadas",
+    value: stats?.approved ?? 0,
+    colorClass: "bg-emerald-100 text-emerald-700",
+  },
+  {
+    key: "rejected",
+    label: "Rejeitadas",
+    value: stats?.rejected ?? 0,
+    colorClass: "bg-rose-100 text-rose-700",
+  },
+  {
+    key: "cancelled",
+    label: "Canceladas",
+    value: stats?.cancelled ?? 0,
+    colorClass: "bg-slate-100 text-slate-700",
+  },
+];
+
 export default function OrganizationDashboard() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<OrganizationDashboardSummary | null>(
@@ -66,6 +102,9 @@ export default function OrganizationDashboard() {
   >([]);
   const [applicationStats, setApplicationStats] =
     useState<ApplicationStats | null>(null);
+  const [applicationsByEvent, setApplicationsByEvent] = useState<
+    Record<string, ApplicationStats>
+  >({});
   const [loading, setLoading] = useState(true);
   const [updatingApplicationId, setUpdatingApplicationId] = useState<
     string | null
@@ -109,12 +148,18 @@ export default function OrganizationDashboard() {
     [summary]
   );
 
+  const statusSummary: StatusSummaryItem[] = useMemo(
+    () => buildStatusSummary(applicationStats),
+    [applicationStats]
+  );
+
   const loadDashboard = useCallback(async () => {
     if (!user) {
       setSummary(null);
       setUpcomingEvents([]);
       setPendingApplications([]);
       setApplicationStats(null);
+      setApplicationsByEvent({});
       setLoading(false);
       return;
     }
@@ -126,12 +171,14 @@ export default function OrganizationDashboard() {
         upcomingEvents: upcoming,
         pendingApplications: pending,
         applicationStats: stats,
+        applicationsByEvent: byEvent,
       } = await fetchOrganizationDashboard(user.id);
 
       setSummary(summaryData);
       setUpcomingEvents(upcoming);
       setPendingApplications(pending);
       setApplicationStats(stats);
+      setApplicationsByEvent(byEvent);
     } catch (error) {
       console.error("Erro ao carregar dados do dashboard:", error);
       toast.error(
@@ -325,6 +372,21 @@ export default function OrganizationDashboard() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   Próximos Eventos
                 </h2>
+                {applicationStats && (
+                  <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {statusSummary.map((item) => (
+                      <div
+                        key={item.key}
+                        className={`rounded-lg px-4 py-3 text-sm font-semibold ${item.colorClass}`}
+                      >
+                        <span className="block text-xs uppercase tracking-wide text-gray-500">
+                          {item.label}
+                        </span>
+                        <span className="text-2xl">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {upcomingEvents.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
                     <p className="text-sm text-gray-600">
@@ -333,33 +395,56 @@ export default function OrganizationDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {upcomingEvents.map((event) => (
-                      <div
-                        key={event.id}
-                        className="rounded-xl border border-gray-200 p-4 hover:bg-gray-50 transition"
-                      >
-                        <h3 className="font-semibold text-gray-900 mb-2">
-                          {event.title}
-                        </h3>
-                        <div className="mb-2 flex items-center text-sm text-gray-600">
-                          <Calendar className="h-4 w-4 mr-2" />
-                          <span>{formatDate(event.date)}</span>
-                        </div>
-                        <div className="mb-2 flex items-center text-sm text-gray-600">
-                          <Users className="h-4 w-4 mr-2" />
-                          <span>
-                            {event.volunteersRegistered} /{" "}
-                            {event.volunteersNeeded} voluntários
-                          </span>
-                        </div>
-                        {event.location?.address && (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <MapPin className="h-4 w-4 mr-2" />
-                            <span>{event.location.address}</span>
+                    {upcomingEvents.map((event) => {
+                      const eventStats = applicationsByEvent[event.id];
+                      const hasApplications =
+                        !!eventStats &&
+                        Object.values(eventStats).some((value) => value > 0);
+                      const eventStatusSummary = buildStatusSummary(eventStats);
+
+                      return (
+                        <div
+                          key={event.id}
+                          className="rounded-xl border border-gray-200 p-4 hover:bg-gray-50 transition"
+                        >
+                          {hasApplications && (
+                            <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                              {eventStatusSummary.map((item) => (
+                                <div
+                                  key={item.key}
+                                  className={`rounded-lg px-4 py-3 text-sm font-semibold ${item.colorClass}`}
+                                >
+                                  <span className="block text-xs uppercase tracking-wide text-gray-500">
+                                    {item.label}
+                                  </span>
+                                  <span className="text-2xl">{item.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <h3 className="font-semibold text-gray-900 mb-2">
+                            {event.title}
+                          </h3>
+                          <div className="mb-2 flex items-center text-sm text-gray-600">
+                            <Calendar className="h-4 w-4 mr-2" />
+                            <span>{formatDate(event.date)}</span>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          <div className="mb-2 flex items-center text-sm text-gray-600">
+                            <Users className="h-4 w-4 mr-2" />
+                            <span>
+                              {event.volunteersRegistered} /{" "}
+                              {event.volunteersNeeded} voluntários
+                            </span>
+                          </div>
+                          {event.location?.address && (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <MapPin className="h-4 w-4 mr-2" />
+                              <span>{event.location.address}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
