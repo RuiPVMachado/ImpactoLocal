@@ -85,8 +85,7 @@ const MapExplorer = () => {
   const polygonRef = useRef<google.maps.Polygon | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
   const polygonListenersRef = useRef<google.maps.MapsEventListener[]>([]);
-  const autocompleteRef =
-    useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
   const geocodeQueueRef = useRef<Set<string>>(new Set());
   const processedGeocodeRef = useRef<Set<string>>(new Set());
@@ -855,8 +854,8 @@ const MapExplorer = () => {
                   )}
                   {pendingGeocodeCount > 0 && (
                     <p className="mt-1 text-emerald-700">
-                      A localizar automaticamente {pendingGeocodeCount} evento(s)
-                      pela morada indicada...
+                      A localizar automaticamente {pendingGeocodeCount}{" "}
+                      evento(s) pela morada indicada...
                     </p>
                   )}
                   {unresolvedWithoutAddress > 0 && (
