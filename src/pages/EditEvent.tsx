@@ -13,6 +13,10 @@ import {
 import { useAuth } from "../context/useAuth";
 import { fetchEventById, updateEvent } from "../lib/api";
 import type { Event } from "../types";
+import {
+  getNowLocalDateTimeInputValue,
+  MIN_EVENT_START_LEEWAY_MS,
+} from "../lib/datetime";
 
 const categories = [
   "Ambiente",
@@ -58,6 +62,8 @@ export default function EditEvent() {
   const [formData, setFormData] = useState<FormState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [originalDate, setOriginalDate] = useState<Date | null>(null);
+  const [minDateTime] = useState<string>(() => getNowLocalDateTimeInputValue());
 
   const canEdit = useMemo(() => user && user.type === "organization", [user]);
 
@@ -99,6 +105,8 @@ export default function EditEvent() {
           volunteersNeeded: String(event.volunteersNeeded ?? ""),
           status: event.status,
         });
+        const parsedDate = new Date(event.date);
+        setOriginalDate(Number.isNaN(parsedDate.getTime()) ? null : parsedDate);
       } catch (error) {
         console.error("Erro ao carregar evento:", error);
         toast.error("Não foi possível carregar o evento para edição.");
@@ -134,15 +142,37 @@ export default function EditEvent() {
       return;
     }
 
-    let isoDate: string;
+    let selectedDate: Date;
     try {
-      isoDate = new Date(formData.date).toISOString();
-      if (!isoDate) throw new Error("Invalid date");
+      selectedDate = new Date(formData.date);
+      if (!Number.isFinite(selectedDate.getTime())) {
+        throw new Error("Invalid date");
+      }
     } catch (error) {
       console.error("Invalid date provided", error);
       toast.error("Data inválida. Verifique o campo e tente novamente.");
       return;
     }
+
+    const now = Date.now();
+    const eventTime = selectedDate.getTime();
+    const inPastBeyondLeeway = eventTime < now - MIN_EVENT_START_LEEWAY_MS;
+
+    if (inPastBeyondLeeway) {
+      const canKeepOriginalDate = (() => {
+        if (!originalDate) return false;
+        const originalTime = originalDate.getTime();
+        if (!Number.isFinite(originalTime)) return false;
+        return Math.abs(eventTime - originalTime) <= MIN_EVENT_START_LEEWAY_MS;
+      })();
+
+      if (!canKeepOriginalDate) {
+        toast.error("A data do evento deve ser no futuro.");
+        return;
+      }
+    }
+
+    const isoDate = selectedDate.toISOString();
 
     setSaving(true);
     try {
@@ -315,6 +345,11 @@ export default function EditEvent() {
                   <input
                     type="datetime-local"
                     value={formData.date}
+                    min={
+                      originalDate && originalDate.getTime() < Date.now()
+                        ? undefined
+                        : minDateTime
+                    }
                     onChange={(event) =>
                       handleChange("date", event.target.value)
                     }

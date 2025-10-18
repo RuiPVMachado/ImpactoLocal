@@ -62,7 +62,9 @@ npm install
 
 # Configure as variáveis de ambiente
 cp .env.example .env
-# Edite .env com suas credenciais Supabase (quando implementar backend)
+# Edite .env com as suas credenciais (Supabase quando disponível) e defina também
+# a chave da Google Maps Platform:
+# VITE_GOOGLE_MAPS_API_KEY="a_sua_api_key"
 
 # Execute em modo desenvolvimento
 npm run dev
@@ -109,7 +111,7 @@ npm run typecheck  # Verifica tipos TypeScript
 
 ### Features Futuras
 
-- 🚧 Google Maps integration
+- ✅ Google Maps integration (mapa interativo com filtros avançados)
 - ✅ Email notifications (envio automático ao aprovar voluntários)
 - 🚧 Sistema de reviews
 - 🚧 Gamification
@@ -126,21 +128,24 @@ Quando uma organização aprova a candidatura de um voluntário, um email autom�
 
    Configure as variáveis no projeto Supabase (Dashboard › Project Settings › Functions › Environment variables):
 
-   | Nome                            | Descrição                                              |
-   | ------------------------------- | ------------------------------------------------------ |
-   | `RESEND_API_KEY`                | API key do Resend com permissões de envio              |
-   | `RESEND_FROM_EMAIL`             | Endereço "From" verificado no Resend                   |
-   | `RESEND_FROM_NAME` _(opcional)_ | Nome exibido no remetente (por defeito: Impacto Local) |
+   | Nome                                   | Descrição                                                       |
+   | -------------------------------------- | --------------------------------------------------------------- |
+   | `RESEND_API_KEY`                       | API key do Resend com permissões de envio                       |
+   | `RESEND_FROM_EMAIL`                    | Endereço "From" verificado no Resend                            |
+   | `RESEND_FROM_NAME` _(opcional)_        | Nome exibido no remetente (por defeito: Impacto Local)          |
+   | `CONTACT_RECIPIENT_EMAIL` _(opcional)_ | Email que recebe mensagens enviadas pelo formulário de contacto |
 
 2. **Deploy da Edge Function**
 
    Com o [Supabase CLI](https://supabase.com/docs/guides/cli) configurado e autenticado:
 
    ```bash
-   supabase functions deploy notify-volunteer
+   supabase functions deploy send-notification
+   supabase functions deploy send-contact-message
    supabase functions secrets set RESEND_API_KEY="<a sua chave>"
    supabase functions secrets set RESEND_FROM_EMAIL="no-reply@impactolocal.pt"
    supabase functions secrets set RESEND_FROM_NAME="Impacto Local"
+   supabase functions secrets set CONTACT_RECIPIENT_EMAIL="contacto@impactolocal.pt"
    ```
 
    > Se preferir, as variáveis podem ser geridas diretamente no dashboard web na secção **Edge Functions › Secrets**.

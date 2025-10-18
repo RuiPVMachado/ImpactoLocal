@@ -5,9 +5,14 @@ import { Event } from "../types";
 interface EventCardProps {
   event: Event;
   onClick?: () => void;
+  showApplyButton?: boolean;
 }
 
-export default function EventCard({ event, onClick }: EventCardProps) {
+export default function EventCard({
+  event,
+  onClick,
+  showApplyButton = true,
+}: EventCardProps) {
   return (
     <div
       className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition cursor-pointer"
@@ -87,17 +92,19 @@ export default function EventCard({ event, onClick }: EventCardProps) {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={(eventClick) => {
-              eventClick.stopPropagation();
-              onClick?.();
-            }}
-            className="flex items-center text-emerald-600 text-sm font-semibold hover:text-emerald-700 transition"
-          >
-            Ver Detalhes
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </button>
+          {showApplyButton && (
+            <button
+              type="button"
+              onClick={(eventClick) => {
+                eventClick.stopPropagation();
+                onClick?.();
+              }}
+              className="flex items-center text-emerald-600 text-sm font-semibold hover:text-emerald-700 transition"
+            >
+              Ver Detalhes
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -24,6 +24,8 @@ interface AuthResponse {
   requiresEmailConfirmation?: boolean;
 }
 
+type SimpleResponse = Pick<AuthResponse, "success" | "error">;
+
 interface AuthContextType {
   user: Profile | null;
   loading: boolean;
@@ -38,6 +40,10 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   isAuthenticated: boolean;
+  resetPassword: (email: string) => Promise<SimpleResponse>;
+  updatePassword: (newPassword: string) => Promise<SimpleResponse>;
+  passwordResetPending: boolean;
+  completePasswordReset: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -65,6 +71,16 @@ type ProfileUpsertPayload = {
 };
 
 const allowedRoles: UserRole[] = ["volunteer", "organization", "admin"];
+
+const PASSWORD_RESET_STORAGE_KEY = "impacto-local:passwordResetPending";
+
+function getInitialPasswordResetPending(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.sessionStorage.getItem(PASSWORD_RESET_STORAGE_KEY) === "true";
+}
 
 function extractProfilePayloadFromUser(user: User): ProfileUpsertPayload {
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
@@ -181,6 +197,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
+  const [passwordResetPending, setPasswordResetPending] = useState<boolean>(
+    () => getInitialPasswordResetPending()
+  );
+
+  const markPasswordResetPending = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(PASSWORD_RESET_STORAGE_KEY, "true");
+    }
+    setPasswordResetPending(true);
+  }, []);
+
+  const clearPasswordResetPending = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(PASSWORD_RESET_STORAGE_KEY);
+    }
+    setPasswordResetPending(false);
+  }, []);
+
+  const completePasswordReset = useCallback(() => {
+    clearPasswordResetPending();
+  }, [clearPasswordResetPending]);
 
   const resolveProfile = useCallback(
     async (authUser: User): Promise<Profile> => {
@@ -236,11 +273,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
 
         if (event === "SIGNED_IN" && session?.user) {
+          clearPasswordResetPending();
+          const profile = await resolveProfile(session.user);
+          setUser(profile);
+        }
+
+        if (event === "PASSWORD_RECOVERY" && session?.user) {
+          markPasswordResetPending();
           const profile = await resolveProfile(session.user);
           setUser(profile);
         }
 
         if (event === "SIGNED_OUT") {
+          clearPasswordResetPending();
           setUser(null);
         }
       }
@@ -252,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [resolveProfile]);
+  }, [resolveProfile, clearPasswordResetPending, markPasswordResetPending]);
 
   const login = useCallback(
     async (email: string, password: string): Promise<AuthResponse> => {
@@ -275,6 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const profile = await resolveProfile(data.user);
         setUser(profile);
+        clearPasswordResetPending();
 
         return { success: true };
       } catch (error: unknown) {
@@ -319,7 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthLoading(false);
       }
     },
-    [resolveProfile]
+    [resolveProfile, clearPasswordResetPending]
   );
 
   const register = useCallback(
@@ -348,6 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.user && data.session) {
           const profile = await resolveProfile(data.user);
           setUser(profile);
+          clearPasswordResetPending();
         }
 
         return {
@@ -390,13 +437,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthLoading(false);
       }
     },
-    [resolveProfile]
+    [resolveProfile, clearPasswordResetPending]
   );
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
-  }, []);
+    clearPasswordResetPending();
+  }, [clearPasswordResetPending]);
+
+  const resetPassword = useCallback(
+    async (email: string): Promise<SimpleResponse> => {
+      setAuthLoading(true);
+      try {
+        const normalizedEmail = email.trim().toLowerCase();
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          normalizedEmail,
+          {
+            redirectTo: `${window.location.origin}/reset-password`,
+          }
+        );
+
+        if (error) throw error;
+
+        return { success: true };
+      } catch (error: unknown) {
+        console.error("Password reset request error:", error);
+
+        let message = "Não foi possível enviar o email de recuperação.";
+
+        if (error instanceof AuthApiError || error instanceof AuthError) {
+          message = error.message;
+        } else if (error instanceof Error) {
+          message = error.message;
+        }
+
+        return { success: false, error: message };
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    []
+  );
+
+  const updatePassword = useCallback(
+    async (newPassword: string): Promise<SimpleResponse> => {
+      setAuthLoading(true);
+      try {
+        const { data, error } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+          const profile = await resolveProfile(data.user);
+          setUser(profile);
+          clearPasswordResetPending();
+        }
+
+        return { success: true };
+      } catch (error: unknown) {
+        console.error("Password update error:", error);
+
+        let message = "Não foi possível atualizar a password.";
+
+        if (error instanceof AuthApiError || error instanceof AuthError) {
+          message = error.message;
+        } else if (error instanceof Error) {
+          message = error.message;
+        }
+
+        return { success: false, error: message };
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    [resolveProfile, clearPasswordResetPending]
+  );
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -424,9 +542,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refreshProfile,
-      isAuthenticated: !!user,
+      isAuthenticated: !!user && !passwordResetPending,
+      resetPassword,
+      updatePassword,
+      passwordResetPending,
+      completePasswordReset,
     }),
-    [user, loading, authLoading, login, register, logout, refreshProfile]
+    [
+      user,
+      loading,
+      authLoading,
+      login,
+      register,
+      logout,
+      refreshProfile,
+      resetPassword,
+      updatePassword,
+      passwordResetPending,
+      completePasswordReset,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

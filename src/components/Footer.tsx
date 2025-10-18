@@ -51,6 +51,22 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  to="/faq"
+                  className="text-sm hover:text-emerald-500 transition"
+                >
+                  FAQ
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/contacto"
+                  className="text-sm hover:text-emerald-500 transition"
+                >
+                  Contacto
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/register"
                   className="text-sm hover:text-emerald-500 transition"
                 >
@@ -95,7 +111,7 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-center space-x-2 text-sm">
                 <Mail className="h-4 w-4 text-emerald-500" />
-                <span>info@impactolocal.pt</span>
+                <span>contacto@impactolocal.pt</span>
               </li>
               <li className="flex items-center space-x-2 text-sm">
                 <Phone className="h-4 w-4 text-emerald-500" />

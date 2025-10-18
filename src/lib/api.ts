@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { notifyApplicationSubmitted } from "./notifications";
+import { MIN_EVENT_START_LEEWAY_MS } from "./datetime";
 import type {
   AdminMetrics,
   Application,
@@ -55,6 +56,7 @@ type UpdateProfilePayload = {
   phone?: string | null;
   bio?: string | null;
   location?: string | null;
+  avatarUrl?: string | null;
 };
 
 type NotificationStatus = "sent" | "failed" | "skipped";
@@ -64,6 +66,35 @@ type UpdateApplicationStatusResult = {
   notificationStatus: NotificationStatus;
   notificationError?: string | null;
 };
+
+type ProcessExpiredEventsResponse =
+  | {
+      success: true;
+      completedEventIds: string[];
+      skippedEventIds: string[];
+      completedCount: number;
+      processedAt: string;
+    }
+  | {
+      success: false;
+      error?: string;
+    };
+
+type ProcessExpiredEventsSuccessResponse = Extract<
+  ProcessExpiredEventsResponse,
+  { success: true }
+>;
+
+type ContactMessagePayload = {
+  name: string;
+  email: string;
+  subject?: string | null;
+  message: string;
+};
+
+type ContactMessageResponse =
+  | { success: true; messageId?: string }
+  | { success: false; error?: string };
 
 type ProfileRow = {
   id: string;
@@ -310,6 +341,87 @@ const handleApplicationSubmissionNotification = (
   return application;
 };
 
+const EXPIRED_EVENTS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+let lastExpiredEventsCheck = 0;
+let expiredEventsProcessingPromise: Promise<void> | null = null;
+
+export async function processExpiredEvents(
+  options: { dryRun?: boolean } = {}
+): Promise<ProcessExpiredEventsSuccessResponse> {
+  const { dryRun = false } = options;
+
+  const { data, error } = await supabase.functions.invoke(
+    "process-expired-events",
+    {
+      body: { dryRun },
+    }
+  );
+
+  if (error) {
+    console.error("Falha ao invocar process-expired-events", error);
+    const message =
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      typeof (error as { message?: unknown }).message === "string"
+        ? ((error as { message: string }).message ?? "").trim()
+        : "Falha ao processar eventos expirados.";
+
+    throw new Error(
+      message.length > 0 ? message : "Falha ao processar eventos expirados."
+    );
+  }
+
+  const payload = data as ProcessExpiredEventsResponse | null;
+
+  if (!payload) {
+    throw new Error("Resposta inválida ao processar eventos expirados.");
+  }
+
+  if (!payload.success) {
+    const message = payload.error?.trim();
+    throw new Error(
+      message && message.length > 0
+        ? message
+        : "Falha ao concluir eventos expirados."
+    );
+  }
+
+  return payload;
+}
+
+async function ensureExpiredEventsProcessed(): Promise<void> {
+  const now = Date.now();
+
+  if (expiredEventsProcessingPromise) {
+    await expiredEventsProcessingPromise;
+    return;
+  }
+
+  if (now - lastExpiredEventsCheck < EXPIRED_EVENTS_REFRESH_INTERVAL_MS) {
+    return;
+  }
+
+  lastExpiredEventsCheck = now;
+
+  const processing: Promise<void> = (async () => {
+    try {
+      await processExpiredEvents();
+    } catch (error) {
+      console.warn(
+        "Falha ao concluir eventos expirados automaticamente",
+        error
+      );
+    }
+  })();
+
+  expiredEventsProcessingPromise = processing.finally(() => {
+    expiredEventsProcessingPromise = null;
+  });
+
+  await expiredEventsProcessingPromise;
+}
+
 async function invokeAdminManage<T>(payload: AdminManagePayload): Promise<T> {
   const {
     data: { session },
@@ -526,6 +638,10 @@ export async function updateProfile(
   const phone = normalizeOptional(payload.phone);
   const bio = normalizeOptional(payload.bio);
   const location = normalizeOptional(payload.location);
+  const avatarUrl =
+    payload.avatarUrl === undefined
+      ? undefined
+      : normalizeOptional(payload.avatarUrl);
 
   if (!id) {
     throw new Error("ID do perfil é obrigatório.");
@@ -539,16 +655,22 @@ export async function updateProfile(
     throw new Error("O email é obrigatório.");
   }
 
+  const updatePayload: Record<string, unknown> = {
+    name,
+    email,
+    phone,
+    bio,
+    location,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (avatarUrl !== undefined) {
+    updatePayload.avatar_url = avatarUrl;
+  }
+
   const { data, error } = await supabase
     .from("profiles")
-    .update({
-      name,
-      email,
-      phone,
-      bio,
-      location,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", id)
     .select("*")
     .maybeSingle<ProfileRow>();
@@ -562,12 +684,16 @@ export async function updateProfile(
     throw new Error("Perfil não encontrado.");
   }
 
-  const metadata: Record<string, string | undefined> = {
+  const metadata: Record<string, string | null | undefined> = {
     name,
     phone: phone ?? undefined,
     bio: bio ?? undefined,
     location: location ?? undefined,
   };
+
+  if (avatarUrl !== undefined) {
+    metadata.avatar_url = avatarUrl;
+  }
 
   const { error: authMetadataError } = await supabase.auth.updateUser({
     data: metadata,
@@ -580,9 +706,60 @@ export async function updateProfile(
   return toProfile(data);
 }
 
+export async function submitContactMessage(
+  payload: ContactMessagePayload
+): Promise<void> {
+  const name = payload.name.trim();
+  const email = payload.email.trim().toLowerCase();
+  const subject = payload.subject?.trim() ?? "";
+  const message = payload.message.trim();
+
+  if (!name) {
+    throw new Error("O nome é obrigatório.");
+  }
+
+  if (!email) {
+    throw new Error("O email é obrigatório.");
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Introduza um email válido.");
+  }
+
+  if (!message || message.length < 10) {
+    throw new Error("A mensagem deve ter pelo menos 10 caracteres.");
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    "send-contact-message",
+    {
+      body: {
+        name,
+        email,
+        subject: subject.length > 0 ? subject : null,
+        message,
+      },
+    }
+  );
+
+  if (error) {
+    console.error("Falha ao enviar mensagem de contacto", error);
+    throw error;
+  }
+
+  const response = data as ContactMessageResponse | null;
+
+  if (!response?.success) {
+    const reason = response?.error ?? "Não foi possível enviar a mensagem.";
+    throw new Error(reason);
+  }
+}
+
 export async function fetchEvents(
   filters: EventFilters = {}
 ): Promise<Event[]> {
+  await ensureExpiredEventsProcessed();
+
   const selectWithOrganization = `*,
         organization:profiles!events_organization_id_fkey(
           id,
@@ -706,6 +883,8 @@ export async function applyToEvent(
 }
 
 export async function fetchEventById(eventId: string): Promise<Event | null> {
+  await ensureExpiredEventsProcessed();
+
   const selectWithOrganization = `*,
         organization:profiles!events_organization_id_fkey(
           id,
@@ -800,6 +979,8 @@ export async function fetchApplicationsByVolunteer(
 export async function fetchVolunteerStatistics(
   volunteerId: string
 ): Promise<VolunteerStatistics> {
+  await ensureExpiredEventsProcessed();
+
   const { data, error } = await supabase
     .from("applications")
     .select(
@@ -995,6 +1176,20 @@ export async function updateApplicationStatus(
 }
 
 export async function createEvent(payload: CreateEventPayload): Promise<Event> {
+  const eventDate = new Date(payload.date);
+  if (!Number.isFinite(eventDate.getTime())) {
+    throw new Error("Data do evento inválida.");
+  }
+
+  const now = Date.now();
+  if (eventDate.getTime() < now - MIN_EVENT_START_LEEWAY_MS) {
+    throw new Error(
+      "A data do evento deve ser igual ou posterior ao momento atual."
+    );
+  }
+
+  const normalizedDateIso = eventDate.toISOString();
+
   const { data, error } = await supabase
     .from("events")
     .insert({
@@ -1005,7 +1200,7 @@ export async function createEvent(payload: CreateEventPayload): Promise<Event> {
       address: payload.address,
       lat: payload.lat ?? null,
       lng: payload.lng ?? null,
-      date: payload.date,
+      date: normalizedDateIso,
       duration: payload.duration,
       volunteers_needed: payload.volunteersNeeded,
       image_url: payload.imageUrl ?? null,
@@ -1033,6 +1228,50 @@ export async function updateEvent(
   organizationId: string,
   payload: UpdateEventPayload
 ): Promise<Event> {
+  let normalizedDateIso: string | undefined;
+
+  if (payload.date !== undefined) {
+    const candidateDate = new Date(payload.date);
+    if (!Number.isFinite(candidateDate.getTime())) {
+      throw new Error("Data do evento inválida.");
+    }
+
+    const now = Date.now();
+    const candidateTime = candidateDate.getTime();
+    const inPastBeyondLeeway = candidateTime < now - MIN_EVENT_START_LEEWAY_MS;
+
+    if (inPastBeyondLeeway) {
+      const { data: existing, error: existingError } = await supabase
+        .from("events")
+        .select("date")
+        .eq("id", eventId)
+        .eq("organization_id", organizationId)
+        .maybeSingle<{ date: string | null }>();
+
+      if (existingError) {
+        throw existingError;
+      }
+
+      if (!existing || !existing.date) {
+        throw new Error("Evento não encontrado.");
+      }
+
+      const originalDate = new Date(existing.date);
+      const originalTime = originalDate.getTime();
+      const canKeepOriginalDate =
+        Number.isFinite(originalTime) &&
+        Math.abs(candidateTime - originalTime) <= MIN_EVENT_START_LEEWAY_MS;
+
+      if (!canKeepOriginalDate) {
+        throw new Error(
+          "A data do evento deve ser igual ou posterior ao momento atual."
+        );
+      }
+    }
+
+    normalizedDateIso = candidateDate.toISOString();
+  }
+
   const updatePayload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -1044,7 +1283,9 @@ export async function updateEvent(
   if (payload.address !== undefined) updatePayload.address = payload.address;
   if (payload.lat !== undefined) updatePayload.lat = payload.lat;
   if (payload.lng !== undefined) updatePayload.lng = payload.lng;
-  if (payload.date !== undefined) updatePayload.date = payload.date;
+  if (normalizedDateIso !== undefined) {
+    updatePayload.date = normalizedDateIso;
+  }
   if (payload.duration !== undefined) updatePayload.duration = payload.duration;
   if (payload.volunteersNeeded !== undefined) {
     updatePayload.volunteers_needed = payload.volunteersNeeded;
@@ -1091,6 +1332,8 @@ export async function deleteEvent(
 export async function fetchOrganizationEvents(
   organizationId: string
 ): Promise<Event[]> {
+  await ensureExpiredEventsProcessed();
+
   const { data, error } = await supabase
     .from("events")
     .select(
@@ -1120,6 +1363,8 @@ export async function fetchOrganizationDashboard(
   applicationStats: ApplicationStats;
   applicationsByEvent: Record<string, ApplicationStats>;
 }> {
+  await ensureExpiredEventsProcessed();
+
   const [eventsResponse, applications] = await Promise.all([
     supabase
       .from("events")
@@ -1245,6 +1490,8 @@ export async function fetchAdminMetrics(): Promise<{
   latestUsers: Profile[];
   latestEvents: Event[];
 }> {
+  await ensureExpiredEventsProcessed();
+
   const [
     usersCount,
     volunteersCount,

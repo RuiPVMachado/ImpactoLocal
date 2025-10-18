@@ -1,9 +1,28 @@
-import { useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { Calendar, MapPin, Users, Clock, FileText, Tag } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Clock,
+  FileText,
+  Tag,
+  ImagePlus,
+  Trash2,
+} from "lucide-react";
 import { useAuth } from "../context/useAuth";
 import { createEvent } from "../lib/api";
+import {
+  getNowLocalDateTimeInputValue,
+  MIN_EVENT_START_LEEWAY_MS,
+} from "../lib/datetime";
+import {
+  getImageConstraintsDescription,
+  removeStorageFileByUrl,
+  uploadEventImage,
+  validateImageFile,
+} from "../lib/storage";
 
 type FormState = {
   title: string;
@@ -27,7 +46,21 @@ export default function CreateEvent() {
     duration: "",
     volunteersNeeded: "",
   });
+  const [minDateTime] = useState<string>(() => getNowLocalDateTimeInputValue());
   const [submitting, setSubmitting] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const imageObjectUrlRef = useRef<string | null>(null);
+  const imageConstraintsHint = getImageConstraintsDescription();
+
+  useEffect(() => {
+    const objectUrl = imageObjectUrlRef.current;
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [imagePreview]);
 
   const categories = [
     "Ambiente",
@@ -47,6 +80,38 @@ export default function CreateEvent() {
       ...previous,
       [field]: value,
     }));
+  };
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    if (imageObjectUrlRef.current) {
+      URL.revokeObjectURL(imageObjectUrlRef.current);
+      imageObjectUrlRef.current = null;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    imageObjectUrlRef.current = previewUrl;
+    setImagePreview(previewUrl);
+    setImageFile(file);
+    event.target.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    if (imageObjectUrlRef.current) {
+      URL.revokeObjectURL(imageObjectUrlRef.current);
+      imageObjectUrlRef.current = null;
+    }
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -74,18 +139,36 @@ export default function CreateEvent() {
       return;
     }
 
-    let isoDate: string;
+    let selectedDate: Date;
     try {
-      isoDate = new Date(formData.date).toISOString();
-      if (!isoDate) throw new Error("Invalid date");
+      selectedDate = new Date(formData.date);
+      if (!Number.isFinite(selectedDate.getTime())) {
+        throw new Error("Invalid date");
+      }
     } catch (error) {
       console.error("Invalid date provided", error);
       toast.error("Data inválida. Verifique o campo e tente novamente.");
       return;
     }
 
+    const now = Date.now();
+    if (selectedDate.getTime() < now - MIN_EVENT_START_LEEWAY_MS) {
+      toast.error("A data do evento deve ser no futuro.");
+      return;
+    }
+
+    const isoDate = selectedDate.toISOString();
+
     setSubmitting(true);
+    let uploadedImageUrl: string | null = null;
     try {
+      if (imageFile) {
+        uploadedImageUrl = await uploadEventImage({
+          organizationId: user.id,
+          file: imageFile,
+        });
+      }
+
       await createEvent({
         organizationId: user.id,
         title: formData.title.trim(),
@@ -95,11 +178,27 @@ export default function CreateEvent() {
         date: isoDate,
         duration: formData.duration.trim(),
         volunteersNeeded,
+        ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
       });
+
+      if (imageObjectUrlRef.current) {
+        URL.revokeObjectURL(imageObjectUrlRef.current);
+        imageObjectUrlRef.current = null;
+      }
+      setImageFile(null);
+      setImagePreview(null);
 
       toast.success("Evento criado com sucesso!");
       navigate("/organization/events");
     } catch (error) {
+      if (uploadedImageUrl) {
+        void removeStorageFileByUrl(uploadedImageUrl).catch((cleanupError) => {
+          console.warn(
+            "Falha ao remover imagem recém-carregada após erro",
+            cleanupError
+          );
+        });
+      }
       console.error("Erro ao criar evento:", error);
       const message =
         error instanceof Error
@@ -214,6 +313,7 @@ export default function CreateEvent() {
                   <input
                     type="datetime-local"
                     value={formData.date}
+                    min={minDateTime}
                     onChange={(event) =>
                       handleChange("date", event.target.value)
                     }
@@ -260,6 +360,54 @@ export default function CreateEvent() {
                   min="1"
                   required
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Imagem do Evento (opcional)
+              </label>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="relative h-40 w-full overflow-hidden rounded-lg border border-dashed border-emerald-300 bg-emerald-50 md:w-64">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Pré-visualização do evento"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-emerald-600">
+                      <ImagePlus className="h-8 w-8" />
+                      <span className="text-sm font-semibold">
+                        Adicione uma imagem chamativa
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-600 hover:text-white">
+                    Selecionar imagem
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+                  </label>
+                  <p className="text-sm text-gray-500">
+                    {imageConstraintsHint}
+                  </p>
+                  {imagePreview && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-rose-600 hover:text-rose-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remover imagem
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

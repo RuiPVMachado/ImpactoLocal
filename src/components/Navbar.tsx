@@ -8,13 +8,17 @@ import {
   Users,
   Settings,
   Heart,
+  Lock,
+  HelpCircle,
+  MessageCircle,
+  Layers,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, passwordResetPending } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -49,13 +53,48 @@ export default function Navbar() {
 
           <div className="flex items-center space-x-6">
             <Link
+              to="/faq"
+              className="flex items-center space-x-1 text-gray-700 hover:text-emerald-600 transition"
+            >
+              <HelpCircle className="h-5 w-5" />
+              <span>FAQ</span>
+            </Link>
+            <Link
+              to="/mapa"
+              className="flex items-center space-x-1 text-gray-700 hover:text-emerald-600 transition"
+            >
+              <Layers className="h-5 w-5" />
+              <span>Mapa</span>
+            </Link>
+            <Link
               to="/sobre-nos"
               className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/60 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
             >
               <Heart className="h-4 w-4" />
               <span>Sobre Nós</span>
             </Link>
-            {isAuthenticated ? (
+            <Link
+              to="/contacto"
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span>Contacto</span>
+            </Link>
+            {passwordResetPending ? (
+              <>
+                <div className="flex items-center space-x-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700">
+                  <Lock className="h-4 w-4" />
+                  <span>Atualize a password para continuar</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-1 text-gray-700 hover:text-red-600 transition"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span>Sair</span>
+                </button>
+              </>
+            ) : isAuthenticated ? (
               <>
                 <Link
                   to="/events"

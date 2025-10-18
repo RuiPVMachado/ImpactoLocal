@@ -131,7 +131,11 @@ export default function Events() {
 
           <div className="mt-4">
             <div className="flex items-center gap-3">
-              <button className="flex items-center space-x-2 text-emerald-600 hover:text-emerald-700 font-semibold">
+              <button
+                type="button"
+                onClick={() => navigate("/mapa")}
+                className="flex items-center space-x-2 text-emerald-600 hover:text-emerald-700 font-semibold"
+              >
                 <MapPin className="h-5 w-5" />
                 <span>Ver Mapa</span>
               </button>

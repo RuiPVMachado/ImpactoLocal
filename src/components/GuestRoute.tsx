@@ -1,19 +1,16 @@
 import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../context/useAuth";
-import type { UserRole } from "../types";
 
-interface ProtectedRouteProps {
+interface GuestRouteProps {
   children: ReactNode;
-  allowedRoles?: UserRole[];
   redirectTo?: string;
 }
 
-export default function ProtectedRoute({
+export default function GuestRoute({
   children,
-  allowedRoles,
-  redirectTo = "/login",
-}: ProtectedRouteProps) {
+  redirectTo = "/",
+}: GuestRouteProps) {
   const { user, loading, passwordResetPending } = useAuth();
   const location = useLocation();
 
@@ -25,24 +22,17 @@ export default function ProtectedRoute({
     );
   }
 
-  if (!user) {
-    return (
-      <Navigate to={redirectTo} state={{ from: location.pathname }} replace />
-    );
-  }
-
   if (passwordResetPending && location.pathname !== "/reset-password") {
-    return (
-      <Navigate
-        to="/reset-password"
-        state={{ from: location.pathname }}
-        replace
-      />
-    );
+    return <Navigate to="/reset-password" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.type)) {
-    return <Navigate to="/" replace />;
+  if (user) {
+    const fallbackPath =
+      typeof location.state?.from === "string"
+        ? location.state.from
+        : redirectTo;
+
+    return <Navigate to={fallbackPath} replace />;
   }
 
   return <>{children}</>;
