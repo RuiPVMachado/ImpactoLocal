@@ -58,6 +58,9 @@ const DEFAULT_RADIUS_KM = Math.max(
   1,
   Math.round(DEFAULT_SEARCH_RADIUS_METERS / 1000)
 );
+const MAX_VOLUNTEER_RESULTS = 60;
+const VOLUNTEER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+const NEXT_PAGE_DELAY_MS = 350;
 
 const MapExplorer = () => {
   const googleMapsApiKey = useMemo(() => getGoogleMapsApiKey(), []);
@@ -96,6 +99,10 @@ const MapExplorer = () => {
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
   const geocodeQueueRef = useRef<Set<string>>(new Set());
   const processedGeocodeRef = useRef<Set<string>>(new Set());
+  const volunteerRequestIdRef = useRef(0);
+  const volunteerCacheRef = useRef(
+    new Map<string, { timestamp: number; places: VolunteerPlace[] }>()
+  );
 
   const eventIcon = useMemo<google.maps.Symbol | undefined>(() => {
     if (!isLoaded || !window.google?.maps) {
@@ -234,7 +241,9 @@ const MapExplorer = () => {
             "A tentativa de obter a sua localização expirou. Tente novamente."
           );
         } else {
-          setLocationError("Ocorreu um erro desconhecido ao obter a localização.");
+          setLocationError(
+            "Ocorreu um erro desconhecido ao obter a localização."
+          );
         }
       },
       {
@@ -830,6 +839,20 @@ const MapExplorer = () => {
         return;
       }
 
+      const requestId = volunteerRequestIdRef.current + 1;
+      volunteerRequestIdRef.current = requestId;
+
+      const cacheKey = `${location.lat.toFixed(5)},${location.lng.toFixed(
+        5
+      )}|${Math.round(radius)}`;
+
+      const cached = volunteerCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < VOLUNTEER_CACHE_TTL_MS) {
+        setVolunteerPlaces(cached.places);
+        setPlacesLoading(false);
+        return;
+      }
+
       setPlacesLoading(true);
 
       const service = new window.google.maps.places.PlacesService(
@@ -837,6 +860,78 @@ const MapExplorer = () => {
       );
 
       const maxRadius = Math.min(radius, 50000);
+      const geometry = window.google.maps.geometry ?? null;
+      const originLatLng = new window.google.maps.LatLng(
+        location.lat,
+        location.lng
+      );
+
+      const fetchAllPages = (
+        request:
+          | google.maps.places.PlaceSearchRequest
+          | google.maps.places.TextSearchRequest,
+        searchFn: (
+          req:
+            | google.maps.places.PlaceSearchRequest
+            | google.maps.places.TextSearchRequest,
+          callback: (
+            results: google.maps.places.PlaceResult[] | null,
+            status: google.maps.places.PlacesServiceStatus,
+            pagination: google.maps.places.PlaceSearchPagination | null
+          ) => void
+        ) => void
+      ) => {
+        return new Promise<{
+          results: google.maps.places.PlaceResult[];
+          status: google.maps.places.PlacesServiceStatus;
+        }>((resolve) => {
+          const aggregated: google.maps.places.PlaceResult[] = [];
+          let resolved = false;
+
+          const handleResults = (
+            results: google.maps.places.PlaceResult[] | null,
+            status: google.maps.places.PlacesServiceStatus,
+            pagination: google.maps.places.PlaceSearchPagination | null
+          ) => {
+            if (resolved || volunteerRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            if (
+              status === window.google.maps.places.PlacesServiceStatus.OK &&
+              results
+            ) {
+              aggregated.push(...results);
+            } else if (
+              status !==
+                window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS &&
+              status !== window.google.maps.places.PlacesServiceStatus.OK
+            ) {
+              console.warn("Falha ao obter empresas de voluntariado", status);
+            }
+
+            if (
+              pagination &&
+              pagination.hasNextPage &&
+              aggregated.length < MAX_VOLUNTEER_RESULTS
+            ) {
+              window.setTimeout(
+                () => pagination.nextPage(),
+                NEXT_PAGE_DELAY_MS
+              );
+              return;
+            }
+
+            resolved = true;
+            resolve({
+              results: aggregated,
+              status,
+            });
+          };
+
+          searchFn(request, handleResults);
+        });
+      };
 
       const parsePlaces = (entries: google.maps.places.PlaceResult[]) => {
         const unique = new Map<string, VolunteerPlace>();
@@ -869,71 +964,95 @@ const MapExplorer = () => {
         return Array.from(unique.values());
       };
 
-      const handleParsedResults = (entries: google.maps.places.PlaceResult[]) => {
-        const parsed = parsePlaces(entries);
-        setVolunteerPlaces(parsed);
-        setPlacesLoading(false);
-      };
-
-      const handleFallback = () => {
-        const textSearchRequest: google.maps.places.TextSearchRequest = {
-          location,
-          radius: maxRadius,
-          query: "associação de voluntariado",
-        };
-
-        service.textSearch(textSearchRequest, (textResults, textStatus) => {
-          if (
-            textStatus ===
-              window.google.maps.places.PlacesServiceStatus.OK &&
-            textResults
-          ) {
-            handleParsedResults(textResults);
-            return;
-          }
-
-          if (
-            textStatus !==
-            window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
-          ) {
-            console.warn(
-              "Falha ao carregar empresas de voluntariado (text search)",
-              textStatus
-            );
-          }
-
-          setVolunteerPlaces([]);
-          setPlacesLoading(false);
-        });
-      };
-
-      const nearbyRequest: google.maps.places.PlaceSearchRequest = {
-        location,
-        radius: maxRadius,
-        keyword: "voluntariado",
-        type: "point_of_interest",
-      };
-
-      service.nearbySearch(nearbyRequest, (results, status) => {
-        if (
-          status === window.google.maps.places.PlacesServiceStatus.OK &&
-          results
-        ) {
-          handleParsedResults(results);
-          return;
-        }
-
-        if (
-          status !== window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
-        ) {
-          console.warn(
-            "Falha ao carregar empresas de voluntariado (nearby search)",
-            status
+      const sortPlaces = (places: VolunteerPlace[]) => {
+        if (!geometry?.spherical) {
+          return [...places].sort((a, b) =>
+            a.name.localeCompare(b.name, "pt", { sensitivity: "base" })
           );
         }
 
-        handleFallback();
-      });
+        return [...places].sort((a, b) => {
+          const distanceA = geometry.spherical.computeDistanceBetween(
+            originLatLng,
+            new window.google.maps.LatLng(a.location.lat, a.location.lng)
+          );
+
+          const distanceB = geometry.spherical.computeDistanceBetween(
+            originLatLng,
+            new window.google.maps.LatLng(b.location.lat, b.location.lng)
+          );
+
+          if (Math.abs(distanceA - distanceB) > 1) {
+            return distanceA - distanceB;
+          }
+
+          return a.name.localeCompare(b.name, "pt", { sensitivity: "base" });
+        });
+      };
+
+      const run = async () => {
+        try {
+          const nearbyRequest: google.maps.places.PlaceSearchRequest = {
+            location,
+            radius: maxRadius,
+            keyword: "voluntariado",
+            type: "point_of_interest",
+          };
+
+          const nearby = await fetchAllPages(
+            nearbyRequest,
+            service.nearbySearch.bind(service)
+          );
+
+          if (volunteerRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          let baseResults = nearby.results;
+
+          if (baseResults.length === 0) {
+            const textSearchRequest: google.maps.places.TextSearchRequest = {
+              location,
+              radius: maxRadius,
+              query: "associação de voluntariado",
+            };
+
+            const textResults = await fetchAllPages(
+              textSearchRequest,
+              service.textSearch.bind(service)
+            );
+
+            if (volunteerRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            baseResults = textResults.results;
+          }
+
+          const parsed = sortPlaces(parsePlaces(baseResults));
+
+          volunteerCacheRef.current.set(cacheKey, {
+            timestamp: Date.now(),
+            places: parsed,
+          });
+
+          setVolunteerPlaces(parsed);
+        } catch (error) {
+          if (volunteerRequestIdRef.current === requestId) {
+            console.warn(
+              "Erro inesperado ao carregar empresas de voluntariado",
+              error
+            );
+            setVolunteerPlaces([]);
+          }
+        } finally {
+          if (volunteerRequestIdRef.current === requestId) {
+            setPlacesLoading(false);
+          }
+        }
+      };
+
+      run();
     },
     []
   );
@@ -1051,9 +1170,7 @@ const MapExplorer = () => {
                   )}
                   {locationStatus === "granted" && userLocation && (
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p>
-                        Raio aplicado em torno da sua localização atual.
-                      </p>
+                      <p>Raio aplicado em torno da sua localização atual.</p>
                       <button
                         type="button"
                         onClick={focusOnUserLocation}
