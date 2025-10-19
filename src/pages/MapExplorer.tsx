@@ -9,15 +9,7 @@ import {
   Polygon,
   Circle,
 } from "@react-google-maps/api";
-import {
-  Filter,
-  MapPin,
-  MousePointer2,
-  Ruler,
-  Trash2,
-  Building2,
-  LocateFixed,
-} from "lucide-react";
+import { Filter, MapPin, MousePointer2, Trash2, Building2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchEvents } from "../lib/api";
 import {
@@ -53,14 +45,10 @@ type VolunteerPlace = {
   placeId?: string;
 };
 
-const radiusOptionsKm = [5, 10, 20, 30, 50];
-const DEFAULT_RADIUS_KM = Math.max(
-  1,
-  Math.round(DEFAULT_SEARCH_RADIUS_METERS / 1000)
-);
 const MAX_VOLUNTEER_RESULTS = 60;
 const VOLUNTEER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 const NEXT_PAGE_DELAY_MS = 200;
+const VOLUNTEER_FALLBACK_RADIUS_METERS = DEFAULT_SEARCH_RADIUS_METERS;
 
 const MapExplorer = () => {
   const googleMapsApiKey = useMemo(() => getGoogleMapsApiKey(), []);
@@ -75,8 +63,6 @@ const MapExplorer = () => {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [drawMode, setDrawMode] = useState<DrawMode>(null);
   const [activeArea, setActiveArea] = useState<ActiveArea>(null);
-  const [radiusKm, setRadiusKm] = useState<number>(DEFAULT_RADIUS_KM);
-  const radiusMeters = useMemo(() => radiusKm * 1000, [radiusKm]);
   const [mapCenter, setMapCenter] = useState(DEFAULT_MAP_CENTER);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -84,12 +70,6 @@ const MapExplorer = () => {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [showEvents, setShowEvents] = useState(true);
   const [showOrganizations, setShowOrganizations] = useState(false);
-  const [userLocation, setUserLocation] =
-    useState<google.maps.LatLngLiteral | null>(null);
-  const [locationStatus, setLocationStatus] = useState<
-    "pending" | "granted" | "denied" | "error" | "unsupported"
-  >("pending");
-  const [locationError, setLocationError] = useState<string | null>(null);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const polygonRef = useRef<google.maps.Polygon | null>(null);
@@ -136,22 +116,6 @@ const MapExplorer = () => {
     } satisfies google.maps.Symbol;
   }, [isLoaded]);
 
-  const userIcon = useMemo<google.maps.Symbol | undefined>(() => {
-    if (!isLoaded || !window.google?.maps) {
-      return undefined;
-    }
-
-    return {
-      path: window.google.maps.SymbolPath.CIRCLE,
-      fillColor: "#f97316",
-      fillOpacity: 0.95,
-      strokeColor: "#ea580c",
-      strokeOpacity: 1,
-      strokeWeight: 2,
-      scale: 9,
-    } satisfies google.maps.Symbol;
-  }, [isLoaded]);
-
   useEffect(() => {
     let isMounted = true;
 
@@ -185,77 +149,7 @@ const MapExplorer = () => {
   }, []);
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setLocationStatus("unsupported");
-      setLocationError(
-        "O seu navegador não suporta geolocalização ou está desativada."
-      );
-      return;
-    }
-
-    let cancelled = false;
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        if (cancelled) {
-          return;
-        }
-
-        const nextLocation = {
-          lat: Number(position.coords.latitude.toFixed(6)),
-          lng: Number(position.coords.longitude.toFixed(6)),
-        };
-
-        setUserLocation(nextLocation);
-        setLocationStatus("granted");
-        setLocationError(null);
-        setMapCenter(nextLocation);
-
-        if (mapRef.current) {
-          mapRef.current.panTo(nextLocation);
-          const currentZoom = mapRef.current.getZoom?.() ?? DEFAULT_MAP_ZOOM;
-          if (currentZoom < 13) {
-            mapRef.current.setZoom(13);
-          }
-        }
-      },
-      (error) => {
-        if (cancelled) {
-          return;
-        }
-
-        setLocationStatus(
-          error.code === error.PERMISSION_DENIED ? "denied" : "error"
-        );
-
-        if (error.code === error.PERMISSION_DENIED) {
-          setLocationError(
-            "Não foi possível obter a sua localização. Autorize o acesso para ver o raio em torno de si."
-          );
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          setLocationError(
-            "A localização atual não está disponível. Tente novamente mais tarde."
-          );
-        } else if (error.code === error.TIMEOUT) {
-          setLocationError(
-            "A tentativa de obter a sua localização expirou. Tente novamente."
-          );
-        } else {
-          setLocationError(
-            "Ocorreu um erro desconhecido ao obter a localização."
-          );
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5 * 60 * 1000,
-      }
-    );
-
-    return () => {
-      cancelled = true;
-    };
+    setMapCenter(DEFAULT_MAP_CENTER);
   }, []);
 
   useEffect(() => {
@@ -517,7 +411,6 @@ const MapExplorer = () => {
     setActiveArea(newArea);
     setDrawMode(null);
     setMapCenter(newArea.center);
-    setRadiusKm(Math.round(newArea.radius / 1000));
 
     if (mapRef.current) {
       const bounds = circle.getBounds();
@@ -605,11 +498,6 @@ const MapExplorer = () => {
         radius,
       } satisfies CircleArea;
     });
-
-    setRadiusKm((previous) => {
-      const nextKm = Math.max(1, Math.round(radius / 1000));
-      return previous === nextKm ? previous : nextKm;
-    });
   }, []);
 
   const handleCircleLoad = useCallback((circle: google.maps.Circle) => {
@@ -652,20 +540,6 @@ const MapExplorer = () => {
     setSelectedPlaceId(null);
   }, []);
 
-  const handleRadiusChange = useCallback(
-    (nextRadiusKm: number) => {
-      setRadiusKm(nextRadiusKm);
-      if (activeArea?.type === "circle") {
-        setActiveArea({
-          type: "circle",
-          center: activeArea.center,
-          radius: nextRadiusKm * 1000,
-        });
-      }
-    },
-    [activeArea]
-  );
-
   const handlePlaceChanged = useCallback(() => {
     const autocomplete = autocompleteRef.current;
     if (!autocomplete) return;
@@ -684,49 +558,8 @@ const MapExplorer = () => {
     }
   }, [clearActiveArea]);
 
-  const focusOnUserLocation = useCallback(() => {
-    if (!userLocation || !mapRef.current) {
-      return;
-    }
-
-    mapRef.current.panTo(userLocation);
-    const currentZoom = mapRef.current.getZoom?.() ?? DEFAULT_MAP_ZOOM;
-    if (currentZoom < 13) {
-      mapRef.current.setZoom(13);
-    }
-    setMapCenter(userLocation);
-  }, [userLocation]);
-
-  const effectiveDistanceFilter = useMemo(() => {
-    if (activeArea?.type === "circle") {
-      return { center: activeArea.center, radius: activeArea.radius };
-    }
-
-    const fallbackCenter = userLocation ?? mapCenter;
-    return { center: fallbackCenter, radius: radiusMeters };
-  }, [activeArea, mapCenter, radiusMeters, userLocation]);
-
-  const proximityCircleCenter = useMemo(() => {
-    if (activeArea) {
-      return null;
-    }
-    return effectiveDistanceFilter.center ?? null;
-  }, [activeArea, effectiveDistanceFilter]);
-
-  const proximityCircleRadius = useMemo(() => {
-    if (activeArea) {
-      return null;
-    }
-    return effectiveDistanceFilter.radius;
-  }, [activeArea, effectiveDistanceFilter]);
-
   const filteredEvents = useMemo(() => {
     if (!window.google?.maps) {
-      return eventsWithCoordinates;
-    }
-
-    const geometry = window.google.maps.geometry;
-    if (!geometry) {
       return eventsWithCoordinates;
     }
 
@@ -735,27 +568,103 @@ const MapExplorer = () => {
         ? new window.google.maps.Polygon({ paths: activeArea.paths })
         : null;
 
+    const circleCenter =
+      activeArea?.type === "circle"
+        ? new window.google.maps.LatLng(
+            activeArea.center.lat,
+            activeArea.center.lng
+          )
+        : null;
+    const circleRadius =
+      activeArea?.type === "circle" ? activeArea.radius : null;
+
+    const containsLocation =
+      window.google?.maps.geometry?.poly?.containsLocation;
+    const computeDistanceBetween =
+      window.google?.maps.geometry?.spherical?.computeDistanceBetween;
+
     return eventsWithCoordinates.filter((event) => {
       const { lat, lng } = event.location;
       if (typeof lat !== "number" || typeof lng !== "number") return false;
 
       const position = new window.google.maps.LatLng(lat, lng);
 
-      if (activeArea?.type === "polygon" && polygonInstance) {
-        return geometry.poly.containsLocation(position, polygonInstance);
+      if (polygonInstance) {
+        if (containsLocation) {
+          return containsLocation(position, polygonInstance);
+        }
+        return true;
       }
 
-      const { center, radius } = effectiveDistanceFilter;
-      if (!center || !radius) return true;
+      if (
+        circleCenter &&
+        typeof circleRadius === "number" &&
+        computeDistanceBetween
+      ) {
+        const distance = computeDistanceBetween(position, circleCenter);
+        return distance <= circleRadius;
+      }
 
-      const distance = geometry.spherical.computeDistanceBetween(
-        position,
-        new window.google.maps.LatLng(center.lat, center.lng)
-      );
-
-      return distance <= radius;
+      return true;
     });
-  }, [activeArea, effectiveDistanceFilter, eventsWithCoordinates]);
+  }, [activeArea, eventsWithCoordinates]);
+
+  const volunteerSearchParams = useMemo(() => {
+    if (activeArea?.type === "circle") {
+      const adjustedRadius = Math.min(
+        Math.max(activeArea.radius * 1.1, 500),
+        50000
+      );
+      return {
+        center: activeArea.center,
+        radius: adjustedRadius,
+      };
+    }
+
+    if (activeArea?.type === "polygon" && window.google?.maps) {
+      try {
+        const bounds = new window.google.maps.LatLngBounds();
+        activeArea.paths.forEach((vertex) => bounds.extend(vertex));
+        const center = bounds.getCenter();
+
+        let radius = VOLUNTEER_FALLBACK_RADIUS_METERS;
+
+        const computeDistance =
+          window.google.maps.geometry?.spherical?.computeDistanceBetween;
+
+        if (computeDistance) {
+          const centerLatLng = new window.google.maps.LatLng(
+            center.lat(),
+            center.lng()
+          );
+
+          const maxDistance = activeArea.paths.reduce((max, vertex) => {
+            const distance = computeDistance(
+              centerLatLng,
+              new window.google.maps.LatLng(vertex.lat, vertex.lng)
+            );
+            return Math.max(max, distance ?? 0);
+          }, 0);
+
+          if (maxDistance > 0) {
+            radius = Math.min(Math.max(maxDistance * 1.2, 500), 50000);
+          }
+        }
+
+        return {
+          center: { lat: center.lat(), lng: center.lng() },
+          radius,
+        };
+      } catch (error) {
+        console.warn("Não foi possível calcular o centro do polígono", error);
+      }
+    }
+
+    return {
+      center: mapCenter,
+      radius: VOLUNTEER_FALLBACK_RADIUS_METERS,
+    };
+  }, [activeArea, mapCenter]);
 
   const filteredVolunteerPlaces = useMemo(() => {
     if (!showOrganizations) {
@@ -766,15 +675,25 @@ const MapExplorer = () => {
       return volunteerPlaces;
     }
 
-    const geometry = window.google.maps.geometry;
-    if (!geometry) {
-      return volunteerPlaces;
-    }
-
     const polygonInstance =
       activeArea?.type === "polygon"
         ? new window.google.maps.Polygon({ paths: activeArea.paths })
         : null;
+
+    const circleCenter =
+      activeArea?.type === "circle"
+        ? new window.google.maps.LatLng(
+            activeArea.center.lat,
+            activeArea.center.lng
+          )
+        : null;
+    const circleRadius =
+      activeArea?.type === "circle" ? activeArea.radius : null;
+
+    const containsLocation =
+      window.google?.maps.geometry?.poly?.containsLocation;
+    const computeDistanceBetween =
+      window.google?.maps.geometry?.spherical?.computeDistanceBetween;
 
     return volunteerPlaces.filter((place) => {
       const { lat, lng } = place.location;
@@ -784,23 +703,25 @@ const MapExplorer = () => {
 
       const position = new window.google.maps.LatLng(lat, lng);
 
-      if (activeArea?.type === "polygon" && polygonInstance) {
-        return geometry.poly.containsLocation(position, polygonInstance);
-      }
-
-      const { center, radius } = effectiveDistanceFilter;
-      if (!center || !radius) {
+      if (polygonInstance) {
+        if (containsLocation) {
+          return containsLocation(position, polygonInstance);
+        }
         return true;
       }
 
-      const distance = geometry.spherical.computeDistanceBetween(
-        position,
-        new window.google.maps.LatLng(center.lat, center.lng)
-      );
+      if (
+        circleCenter &&
+        typeof circleRadius === "number" &&
+        computeDistanceBetween
+      ) {
+        const distance = computeDistanceBetween(position, circleCenter);
+        return distance <= circleRadius;
+      }
 
-      return distance <= radius;
+      return true;
     });
-  }, [activeArea, effectiveDistanceFilter, showOrganizations, volunteerPlaces]);
+  }, [activeArea, showOrganizations, volunteerPlaces]);
 
   const selectedEvent = useMemo(() => {
     if (!selectedEventId) return null;
@@ -1054,22 +975,26 @@ const MapExplorer = () => {
     []
   );
 
+  const volunteerCenter = volunteerSearchParams.center;
+  const volunteerRadius = volunteerSearchParams.radius;
+
   useEffect(() => {
     if (!isLoaded || !showOrganizations) {
       setVolunteerPlaces([]);
       return;
     }
 
-    if (!effectiveDistanceFilter.center) return;
-    loadVolunteerPlaces(
-      effectiveDistanceFilter.center,
-      effectiveDistanceFilter.radius
-    );
+    if (!volunteerCenter) {
+      return;
+    }
+
+    loadVolunteerPlaces(volunteerCenter, volunteerRadius);
   }, [
-    effectiveDistanceFilter,
     isLoaded,
     loadVolunteerPlaces,
     showOrganizations,
+    volunteerCenter,
+    volunteerRadius,
   ]);
 
   if (loadError) {
@@ -1135,64 +1060,6 @@ const MapExplorer = () => {
                 <p className="mt-2 text-xs text-gray-500">
                   Utilize a pesquisa para definir o ponto de referência do mapa.
                 </p>
-              </div>
-
-              <div>
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  Raio de proximidade
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {radiusOptionsKm.map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => handleRadiusChange(option)}
-                      className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                        radiusKm === option
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                          : "border-gray-200 bg-gray-50 text-gray-600 hover:border-emerald-300 hover:text-emerald-600"
-                      }`}
-                    >
-                      {option} km
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-                  <Ruler className="h-4 w-4 text-emerald-500" />
-                  Ajuste o raio para limitar os resultados em redor do ponto
-                  central.
-                </p>
-                <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-xs text-gray-700">
-                  {locationStatus === "pending" && (
-                    <p>Estamos a identificar a sua localização atual...</p>
-                  )}
-                  {locationStatus === "granted" && userLocation && (
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p>Raio aplicado em torno da sua localização atual.</p>
-                      <button
-                        type="button"
-                        onClick={focusOnUserLocation}
-                        className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 font-semibold text-white transition hover:bg-emerald-700"
-                      >
-                        <LocateFixed className="h-4 w-4" />
-                        Recentrar
-                      </button>
-                    </div>
-                  )}
-                  {locationStatus === "denied" && (
-                    <p className="text-amber-700">
-                      Autorize o acesso à localização para ver o raio aplicado
-                      em torno de si.
-                    </p>
-                  )}
-                  {locationStatus === "unsupported" && (
-                    <p className="text-amber-700">
-                      O seu navegador não suporta geolocalização automática.
-                    </p>
-                  )}
-                  {locationStatus === "error" && locationError && (
-                    <p className="text-amber-700">{locationError}</p>
-                  )}
-                </div>
               </div>
 
               <div className="border-t border-gray-100 pt-4">
@@ -1330,7 +1197,7 @@ const MapExplorer = () => {
                 onLoad={onMapLoad}
                 onUnmount={onMapUnmount}
                 onIdle={handleIdle}
-                center={effectiveDistanceFilter.center}
+                center={mapCenter}
                 zoom={DEFAULT_MAP_ZOOM}
                 options={mapOptions}
                 mapContainerClassName="w-full h-full"
@@ -1340,36 +1207,6 @@ const MapExplorer = () => {
                   onCircleComplete={handleCircleComplete}
                   options={drawingManagerOptions}
                 />
-
-                {proximityCircleCenter &&
-                  typeof proximityCircleRadius === "number" &&
-                  Number.isFinite(proximityCircleRadius) && (
-                    <Circle
-                      center={proximityCircleCenter}
-                      radius={proximityCircleRadius}
-                      options={{
-                        fillColor: "#f97316",
-                        fillOpacity: 0.08,
-                        strokeColor: "#f97316",
-                        strokeOpacity: 0.6,
-                        strokeWeight: 2,
-                        clickable: false,
-                        zIndex: 5,
-                      }}
-                    />
-                  )}
-
-                {userLocation && (
-                  <Marker
-                    position={userLocation}
-                    icon={userIcon}
-                    zIndex={1000}
-                    onClick={() => {
-                      setSelectedEventId(null);
-                      setSelectedPlaceId(null);
-                    }}
-                  />
-                )}
 
                 {activeArea?.type === "polygon" && (
                   <Polygon
