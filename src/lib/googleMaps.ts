@@ -5,8 +5,8 @@ export const GOOGLE_MAPS_LIBRARIES: ("places" | "drawing" | "geometry")[] = [
 ];
 
 export const DEFAULT_MAP_CENTER = {
-  lat: 38.7223, // Lisbon, Portugal
-  lng: -9.1393,
+  lat: 41.1579, // Porto, Portugal
+  lng: -8.6291,
 };
 
 export const DEFAULT_SEARCH_RADIUS_METERS = 15000; // 15km radius by default
@@ -57,7 +57,7 @@ export const IDEALISTA_MAP_STYLE: google.maps.MapTypeStyle[] = [
   {
     featureType: "transit",
     elementType: "all",
-    stylers: [{ visibility: "off" }],
+    stylers: [{ visualization: "off" }],
   },
   {
     featureType: "water",
