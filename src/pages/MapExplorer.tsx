@@ -723,6 +723,18 @@ const MapExplorer = () => {
     });
   }, [activeArea, showOrganizations, volunteerPlaces]);
 
+  const hiddenVolunteerCount = useMemo(() => {
+    if (!showOrganizations) {
+      return 0;
+    }
+
+    return Math.max(volunteerPlaces.length - filteredVolunteerPlaces.length, 0);
+  }, [
+    filteredVolunteerPlaces.length,
+    showOrganizations,
+    volunteerPlaces.length,
+  ]);
+
   const selectedEvent = useMemo(() => {
     if (!selectedEventId) return null;
     return filteredEvents.find((event) => event.id === selectedEventId) ?? null;
@@ -1140,18 +1152,27 @@ const MapExplorer = () => {
                   )}
                   {showOrganizations && (
                     <p className="mt-1">
-                      Empresas visíveis:{" "}
+                      Empresas na área selecionada:{" "}
                       <strong>{filteredVolunteerPlaces.length}</strong>
                       {placesLoading ? " (a carregar...)" : ""}
                       {!placesLoading &&
-                        filteredVolunteerPlaces.length !==
-                          volunteerPlaces.length && (
+                        hiddenVolunteerCount === 0 &&
+                        volunteerPlaces.length > 0 && (
                           <span className="ml-1 text-[11px] text-emerald-700/80">
-                            (de {volunteerPlaces.length} resultados)
+                            (total carregado: {volunteerPlaces.length})
                           </span>
                         )}
                     </p>
                   )}
+                  {showOrganizations &&
+                    !placesLoading &&
+                    hiddenVolunteerCount > 0 && (
+                      <p className="mt-1 text-[11px] text-emerald-700/80">
+                        Ocultadas {hiddenVolunteerCount} organização(s) fora da
+                        área desenhada (total carregado:{" "}
+                        {volunteerPlaces.length}).
+                      </p>
+                    )}
                   {showOrganizations &&
                     !placesLoading &&
                     volunteerPlaces.length > 0 &&
