@@ -60,7 +60,7 @@ const DEFAULT_RADIUS_KM = Math.max(
 );
 const MAX_VOLUNTEER_RESULTS = 60;
 const VOLUNTEER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
-const NEXT_PAGE_DELAY_MS = 350;
+const NEXT_PAGE_DELAY_MS = 200;
 
 const MapExplorer = () => {
   const googleMapsApiKey = useMemo(() => getGoogleMapsApiKey(), []);
@@ -866,112 +866,18 @@ const MapExplorer = () => {
         location.lng
       );
 
-      const fetchAllPages = (
-        request:
-          | google.maps.places.PlaceSearchRequest
-          | google.maps.places.TextSearchRequest,
-        searchFn: (
-          req:
-            | google.maps.places.PlaceSearchRequest
-            | google.maps.places.TextSearchRequest,
-          callback: (
-            results: google.maps.places.PlaceResult[] | null,
-            status: google.maps.places.PlacesServiceStatus,
-            pagination: google.maps.places.PlaceSearchPagination | null
-          ) => void
-        ) => void
-      ) => {
-        return new Promise<{
-          results: google.maps.places.PlaceResult[];
-          status: google.maps.places.PlacesServiceStatus;
-        }>((resolve) => {
-          const aggregated: google.maps.places.PlaceResult[] = [];
-          let resolved = false;
+      const aggregatedPlaces = new Map<string, VolunteerPlace>();
 
-          const handleResults = (
-            results: google.maps.places.PlaceResult[] | null,
-            status: google.maps.places.PlacesServiceStatus,
-            pagination: google.maps.places.PlaceSearchPagination | null
-          ) => {
-            if (resolved || volunteerRequestIdRef.current !== requestId) {
-              return;
-            }
+      const sortPlaces = (places: Iterable<VolunteerPlace>) => {
+        const array = Array.from(places);
 
-            if (
-              status === window.google.maps.places.PlacesServiceStatus.OK &&
-              results
-            ) {
-              aggregated.push(...results);
-            } else if (
-              status !==
-                window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS &&
-              status !== window.google.maps.places.PlacesServiceStatus.OK
-            ) {
-              console.warn("Falha ao obter empresas de voluntariado", status);
-            }
-
-            if (
-              pagination &&
-              pagination.hasNextPage &&
-              aggregated.length < MAX_VOLUNTEER_RESULTS
-            ) {
-              window.setTimeout(
-                () => pagination.nextPage(),
-                NEXT_PAGE_DELAY_MS
-              );
-              return;
-            }
-
-            resolved = true;
-            resolve({
-              results: aggregated,
-              status,
-            });
-          };
-
-          searchFn(request, handleResults);
-        });
-      };
-
-      const parsePlaces = (entries: google.maps.places.PlaceResult[]) => {
-        const unique = new Map<string, VolunteerPlace>();
-
-        entries.forEach((place) => {
-          if (!place.geometry?.location) {
-            return;
-          }
-
-          const placeId = place.place_id ?? `${place.name}-${place.vicinity}`;
-          if (!placeId || unique.has(placeId)) {
-            return;
-          }
-
-          unique.set(placeId, {
-            id: placeId,
-            name: place.name ?? "Organização de voluntariado",
-            location: {
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng(),
-            },
-            address:
-              place.formatted_address ??
-              place.vicinity ??
-              "Morada não disponível",
-            placeId: place.place_id ?? undefined,
-          });
-        });
-
-        return Array.from(unique.values());
-      };
-
-      const sortPlaces = (places: VolunteerPlace[]) => {
         if (!geometry?.spherical) {
-          return [...places].sort((a, b) =>
+          return array.sort((a, b) =>
             a.name.localeCompare(b.name, "pt", { sensitivity: "base" })
           );
         }
 
-        return [...places].sort((a, b) => {
+        return array.sort((a, b) => {
           const distanceA = geometry.spherical.computeDistanceBetween(
             originLatLng,
             new window.google.maps.LatLng(a.location.lat, a.location.lng)
@@ -990,6 +896,104 @@ const MapExplorer = () => {
         });
       };
 
+      const pushResults = (
+        results: google.maps.places.PlaceResult[] | null
+      ) => {
+        if (!results) {
+          return;
+        }
+
+        for (const place of results) {
+          if (!place.geometry?.location) {
+            continue;
+          }
+
+          const placeId = place.place_id ?? `${place.name}-${place.vicinity}`;
+          if (!placeId || aggregatedPlaces.has(placeId)) {
+            continue;
+          }
+
+          aggregatedPlaces.set(placeId, {
+            id: placeId,
+            name: place.name ?? "Organização de voluntariado",
+            location: {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            },
+            address:
+              place.formatted_address ??
+              place.vicinity ??
+              "Morada não disponível",
+            placeId: place.place_id ?? undefined,
+          });
+
+          if (aggregatedPlaces.size >= MAX_VOLUNTEER_RESULTS) {
+            break;
+          }
+        }
+
+        if (volunteerRequestIdRef.current === requestId) {
+          setVolunteerPlaces(sortPlaces(aggregatedPlaces.values()));
+        }
+      };
+
+      const fetchPages = async (
+        request:
+          | google.maps.places.PlaceSearchRequest
+          | google.maps.places.TextSearchRequest,
+        searchFn: (
+          req:
+            | google.maps.places.PlaceSearchRequest
+            | google.maps.places.TextSearchRequest,
+          callback: (
+            results: google.maps.places.PlaceResult[] | null,
+            status: google.maps.places.PlacesServiceStatus,
+            pagination: google.maps.places.PlaceSearchPagination | null
+          ) => void
+        ) => void
+      ) => {
+        await new Promise<void>((resolve) => {
+          const handleResults = (
+            results: google.maps.places.PlaceResult[] | null,
+            status: google.maps.places.PlacesServiceStatus,
+            pagination: google.maps.places.PlaceSearchPagination | null
+          ) => {
+            if (volunteerRequestIdRef.current !== requestId) {
+              resolve();
+              return;
+            }
+
+            if (
+              status === window.google.maps.places.PlacesServiceStatus.OK &&
+              results
+            ) {
+              pushResults(results);
+            } else if (
+              status !== window.google.maps.places.PlacesServiceStatus.OK &&
+              status !==
+                window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
+            ) {
+              console.warn("Falha ao obter empresas de voluntariado", status);
+            }
+
+            if (
+              pagination &&
+              pagination.hasNextPage &&
+              aggregatedPlaces.size < MAX_VOLUNTEER_RESULTS
+            ) {
+              window.setTimeout(() => {
+                pagination.nextPage();
+              }, NEXT_PAGE_DELAY_MS);
+              return;
+            }
+
+            resolve();
+          };
+
+          searchFn(request, handleResults);
+        });
+      };
+
       const run = async () => {
         try {
           const nearbyRequest: google.maps.places.PlaceSearchRequest = {
@@ -999,25 +1003,20 @@ const MapExplorer = () => {
             type: "point_of_interest",
           };
 
-          const nearby = await fetchAllPages(
-            nearbyRequest,
-            service.nearbySearch.bind(service)
-          );
+          await fetchPages(nearbyRequest, service.nearbySearch.bind(service));
 
           if (volunteerRequestIdRef.current !== requestId) {
             return;
           }
 
-          let baseResults = nearby.results;
-
-          if (baseResults.length === 0) {
+          if (aggregatedPlaces.size === 0) {
             const textSearchRequest: google.maps.places.TextSearchRequest = {
               location,
               radius: maxRadius,
               query: "associação de voluntariado",
             };
 
-            const textResults = await fetchAllPages(
+            await fetchPages(
               textSearchRequest,
               service.textSearch.bind(service)
             );
@@ -1025,18 +1024,16 @@ const MapExplorer = () => {
             if (volunteerRequestIdRef.current !== requestId) {
               return;
             }
-
-            baseResults = textResults.results;
           }
 
-          const parsed = sortPlaces(parsePlaces(baseResults));
+          const finalResults = sortPlaces(aggregatedPlaces.values());
 
           volunteerCacheRef.current.set(cacheKey, {
             timestamp: Date.now(),
-            places: parsed,
+            places: finalResults,
           });
 
-          setVolunteerPlaces(parsed);
+          setVolunteerPlaces(finalResults);
         } catch (error) {
           if (volunteerRequestIdRef.current === requestId) {
             console.warn(
