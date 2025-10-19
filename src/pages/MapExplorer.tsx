@@ -16,6 +16,7 @@ import {
   Ruler,
   Trash2,
   Building2,
+  LocateFixed,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchEvents } from "../lib/api";
@@ -80,6 +81,12 @@ const MapExplorer = () => {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [showEvents, setShowEvents] = useState(true);
   const [showOrganizations, setShowOrganizations] = useState(false);
+  const [userLocation, setUserLocation] =
+    useState<google.maps.LatLngLiteral | null>(null);
+  const [locationStatus, setLocationStatus] = useState<
+    "pending" | "granted" | "denied" | "error" | "unsupported"
+  >("pending");
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const polygonRef = useRef<google.maps.Polygon | null>(null);
@@ -122,6 +129,22 @@ const MapExplorer = () => {
     } satisfies google.maps.Symbol;
   }, [isLoaded]);
 
+  const userIcon = useMemo<google.maps.Symbol | undefined>(() => {
+    if (!isLoaded || !window.google?.maps) {
+      return undefined;
+    }
+
+    return {
+      path: window.google.maps.SymbolPath.CIRCLE,
+      fillColor: "#f97316",
+      fillOpacity: 0.95,
+      strokeColor: "#ea580c",
+      strokeOpacity: 1,
+      strokeWeight: 2,
+      scale: 9,
+    } satisfies google.maps.Symbol;
+  }, [isLoaded]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -151,6 +174,78 @@ const MapExplorer = () => {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("unsupported");
+      setLocationError(
+        "O seu navegador não suporta geolocalização ou está desativada."
+      );
+      return;
+    }
+
+    let cancelled = false;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (cancelled) {
+          return;
+        }
+
+        const nextLocation = {
+          lat: Number(position.coords.latitude.toFixed(6)),
+          lng: Number(position.coords.longitude.toFixed(6)),
+        };
+
+        setUserLocation(nextLocation);
+        setLocationStatus("granted");
+        setLocationError(null);
+        setMapCenter(nextLocation);
+
+        if (mapRef.current) {
+          mapRef.current.panTo(nextLocation);
+          const currentZoom = mapRef.current.getZoom?.() ?? DEFAULT_MAP_ZOOM;
+          if (currentZoom < 13) {
+            mapRef.current.setZoom(13);
+          }
+        }
+      },
+      (error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setLocationStatus(
+          error.code === error.PERMISSION_DENIED ? "denied" : "error"
+        );
+
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationError(
+            "Não foi possível obter a sua localização. Autorize o acesso para ver o raio em torno de si."
+          );
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationError(
+            "A localização atual não está disponível. Tente novamente mais tarde."
+          );
+        } else if (error.code === error.TIMEOUT) {
+          setLocationError(
+            "A tentativa de obter a sua localização expirou. Tente novamente."
+          );
+        } else {
+          setLocationError("Ocorreu um erro desconhecido ao obter a localização.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5 * 60 * 1000,
+      }
+    );
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -468,15 +563,43 @@ const MapExplorer = () => {
   }, []);
 
   const updateCircleFromRef = useCallback(() => {
-    if (!circleRef.current) return;
+    const circle = circleRef.current;
+    if (!circle) {
+      return;
+    }
 
-    const center = circleRef.current.getCenter();
-    if (!center) return;
+    const center = circle.getCenter();
+    const radius = circle.getRadius();
 
-    setActiveArea({
-      type: "circle",
-      center: { lat: center.lat(), lng: center.lng() },
-      radius: circleRef.current.getRadius(),
+    if (!center || !Number.isFinite(radius)) {
+      return;
+    }
+
+    const nextCenter = {
+      lat: Number(center.lat().toFixed(6)),
+      lng: Number(center.lng().toFixed(6)),
+    };
+
+    setActiveArea((current) => {
+      if (
+        current?.type === "circle" &&
+        Math.abs(current.radius - radius) < 0.5 &&
+        Math.abs(current.center.lat - nextCenter.lat) < 0.000001 &&
+        Math.abs(current.center.lng - nextCenter.lng) < 0.000001
+      ) {
+        return current;
+      }
+
+      return {
+        type: "circle",
+        center: nextCenter,
+        radius,
+      } satisfies CircleArea;
+    });
+
+    setRadiusKm((previous) => {
+      const nextKm = Math.max(1, Math.round(radius / 1000));
+      return previous === nextKm ? previous : nextKm;
     });
   }, []);
 
@@ -552,12 +675,41 @@ const MapExplorer = () => {
     }
   }, [clearActiveArea]);
 
+  const focusOnUserLocation = useCallback(() => {
+    if (!userLocation || !mapRef.current) {
+      return;
+    }
+
+    mapRef.current.panTo(userLocation);
+    const currentZoom = mapRef.current.getZoom?.() ?? DEFAULT_MAP_ZOOM;
+    if (currentZoom < 13) {
+      mapRef.current.setZoom(13);
+    }
+    setMapCenter(userLocation);
+  }, [userLocation]);
+
   const effectiveDistanceFilter = useMemo(() => {
     if (activeArea?.type === "circle") {
       return { center: activeArea.center, radius: activeArea.radius };
     }
-    return { center: mapCenter, radius: radiusMeters };
-  }, [activeArea, mapCenter, radiusMeters]);
+
+    const fallbackCenter = userLocation ?? mapCenter;
+    return { center: fallbackCenter, radius: radiusMeters };
+  }, [activeArea, mapCenter, radiusMeters, userLocation]);
+
+  const proximityCircleCenter = useMemo(() => {
+    if (activeArea) {
+      return null;
+    }
+    return effectiveDistanceFilter.center ?? null;
+  }, [activeArea, effectiveDistanceFilter]);
+
+  const proximityCircleRadius = useMemo(() => {
+    if (activeArea) {
+      return null;
+    }
+    return effectiveDistanceFilter.radius;
+  }, [activeArea, effectiveDistanceFilter]);
 
   const filteredEvents = useMemo(() => {
     if (!window.google?.maps) {
@@ -596,6 +748,51 @@ const MapExplorer = () => {
     });
   }, [activeArea, effectiveDistanceFilter, eventsWithCoordinates]);
 
+  const filteredVolunteerPlaces = useMemo(() => {
+    if (!showOrganizations) {
+      return [] as VolunteerPlace[];
+    }
+
+    if (!window.google?.maps) {
+      return volunteerPlaces;
+    }
+
+    const geometry = window.google.maps.geometry;
+    if (!geometry) {
+      return volunteerPlaces;
+    }
+
+    const polygonInstance =
+      activeArea?.type === "polygon"
+        ? new window.google.maps.Polygon({ paths: activeArea.paths })
+        : null;
+
+    return volunteerPlaces.filter((place) => {
+      const { lat, lng } = place.location;
+      if (typeof lat !== "number" || typeof lng !== "number") {
+        return false;
+      }
+
+      const position = new window.google.maps.LatLng(lat, lng);
+
+      if (activeArea?.type === "polygon" && polygonInstance) {
+        return geometry.poly.containsLocation(position, polygonInstance);
+      }
+
+      const { center, radius } = effectiveDistanceFilter;
+      if (!center || !radius) {
+        return true;
+      }
+
+      const distance = geometry.spherical.computeDistanceBetween(
+        position,
+        new window.google.maps.LatLng(center.lat, center.lng)
+      );
+
+      return distance <= radius;
+    });
+  }, [activeArea, effectiveDistanceFilter, showOrganizations, volunteerPlaces]);
+
   const selectedEvent = useMemo(() => {
     if (!selectedEventId) return null;
     return filteredEvents.find((event) => event.id === selectedEventId) ?? null;
@@ -604,9 +801,28 @@ const MapExplorer = () => {
   const selectedPlace = useMemo(() => {
     if (!selectedPlaceId) return null;
     return (
-      volunteerPlaces.find((place) => place.id === selectedPlaceId) ?? null
+      filteredVolunteerPlaces.find((place) => place.id === selectedPlaceId) ??
+      null
     );
-  }, [selectedPlaceId, volunteerPlaces]);
+  }, [filteredVolunteerPlaces, selectedPlaceId]);
+
+  useEffect(() => {
+    if (
+      selectedEventId &&
+      !filteredEvents.some((event) => event.id === selectedEventId)
+    ) {
+      setSelectedEventId(null);
+    }
+  }, [filteredEvents, selectedEventId]);
+
+  useEffect(() => {
+    if (
+      selectedPlaceId &&
+      !filteredVolunteerPlaces.some((place) => place.id === selectedPlaceId)
+    ) {
+      setSelectedPlaceId(null);
+    }
+  }, [filteredVolunteerPlaces, selectedPlaceId]);
 
   const loadVolunteerPlaces = useCallback(
     (location: google.maps.LatLngLiteral, radius: number) => {
@@ -620,41 +836,103 @@ const MapExplorer = () => {
         mapRef.current
       );
 
-      const request: google.maps.places.TextSearchRequest = {
-        location,
-        radius: Math.min(radius, 50000),
-        query: "voluntariado",
+      const maxRadius = Math.min(radius, 50000);
+
+      const parsePlaces = (entries: google.maps.places.PlaceResult[]) => {
+        const unique = new Map<string, VolunteerPlace>();
+
+        entries.forEach((place) => {
+          if (!place.geometry?.location) {
+            return;
+          }
+
+          const placeId = place.place_id ?? `${place.name}-${place.vicinity}`;
+          if (!placeId || unique.has(placeId)) {
+            return;
+          }
+
+          unique.set(placeId, {
+            id: placeId,
+            name: place.name ?? "Organização de voluntariado",
+            location: {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            },
+            address:
+              place.formatted_address ??
+              place.vicinity ??
+              "Morada não disponível",
+            placeId: place.place_id ?? undefined,
+          });
+        });
+
+        return Array.from(unique.values());
       };
 
-      service.textSearch(request, (results, status) => {
+      const handleParsedResults = (entries: google.maps.places.PlaceResult[]) => {
+        const parsed = parsePlaces(entries);
+        setVolunteerPlaces(parsed);
+        setPlacesLoading(false);
+      };
+
+      const handleFallback = () => {
+        const textSearchRequest: google.maps.places.TextSearchRequest = {
+          location,
+          radius: maxRadius,
+          query: "associação de voluntariado",
+        };
+
+        service.textSearch(textSearchRequest, (textResults, textStatus) => {
+          if (
+            textStatus ===
+              window.google.maps.places.PlacesServiceStatus.OK &&
+            textResults
+          ) {
+            handleParsedResults(textResults);
+            return;
+          }
+
+          if (
+            textStatus !==
+            window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
+          ) {
+            console.warn(
+              "Falha ao carregar empresas de voluntariado (text search)",
+              textStatus
+            );
+          }
+
+          setVolunteerPlaces([]);
+          setPlacesLoading(false);
+        });
+      };
+
+      const nearbyRequest: google.maps.places.PlaceSearchRequest = {
+        location,
+        radius: maxRadius,
+        keyword: "voluntariado",
+        type: "point_of_interest",
+      };
+
+      service.nearbySearch(nearbyRequest, (results, status) => {
         if (
           status === window.google.maps.places.PlacesServiceStatus.OK &&
           results
         ) {
-          const parsed: VolunteerPlace[] = results
-            .filter((place) => Boolean(place.geometry?.location))
-            .map((place) => ({
-              id: place.place_id ?? `${place.name}-${place.formatted_address}`,
-              name: place.name ?? "Organização de voluntariado",
-              location: {
-                lat: place.geometry!.location!.lat(),
-                lng: place.geometry!.location!.lng(),
-              },
-              address: place.formatted_address,
-              placeId: place.place_id ?? undefined,
-            }));
-
-          setVolunteerPlaces(parsed);
-        } else {
-          if (
-            status !==
-            window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
-          ) {
-            console.warn("Falha ao carregar empresas de voluntariado", status);
-          }
-          setVolunteerPlaces([]);
+          handleParsedResults(results);
+          return;
         }
-        setPlacesLoading(false);
+
+        if (
+          status !== window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS
+        ) {
+          console.warn(
+            "Falha ao carregar empresas de voluntariado (nearby search)",
+            status
+          );
+        }
+
+        handleFallback();
       });
     },
     []
@@ -767,6 +1045,40 @@ const MapExplorer = () => {
                   Ajuste o raio para limitar os resultados em redor do ponto
                   central.
                 </p>
+                <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-xs text-gray-700">
+                  {locationStatus === "pending" && (
+                    <p>Estamos a identificar a sua localização atual...</p>
+                  )}
+                  {locationStatus === "granted" && userLocation && (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p>
+                        Raio aplicado em torno da sua localização atual.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={focusOnUserLocation}
+                        className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 font-semibold text-white transition hover:bg-emerald-700"
+                      >
+                        <LocateFixed className="h-4 w-4" />
+                        Recentrar
+                      </button>
+                    </div>
+                  )}
+                  {locationStatus === "denied" && (
+                    <p className="text-amber-700">
+                      Autorize o acesso à localização para ver o raio aplicado
+                      em torno de si.
+                    </p>
+                  )}
+                  {locationStatus === "unsupported" && (
+                    <p className="text-amber-700">
+                      O seu navegador não suporta geolocalização automática.
+                    </p>
+                  )}
+                  {locationStatus === "error" && locationError && (
+                    <p className="text-amber-700">{locationError}</p>
+                  )}
+                </div>
               </div>
 
               <div className="border-t border-gray-100 pt-4">
@@ -848,10 +1160,32 @@ const MapExplorer = () => {
                   {showOrganizations && (
                     <p className="mt-1">
                       Empresas visíveis:{" "}
-                      <strong>{volunteerPlaces.length}</strong>
+                      <strong>{filteredVolunteerPlaces.length}</strong>
                       {placesLoading ? " (a carregar...)" : ""}
+                      {!placesLoading &&
+                        filteredVolunteerPlaces.length !==
+                          volunteerPlaces.length && (
+                          <span className="ml-1 text-[11px] text-emerald-700/80">
+                            (de {volunteerPlaces.length} resultados)
+                          </span>
+                        )}
                     </p>
                   )}
+                  {showOrganizations &&
+                    !placesLoading &&
+                    volunteerPlaces.length > 0 &&
+                    filteredVolunteerPlaces.length === 0 && (
+                      <p className="mt-1 text-emerald-700">
+                        Nenhuma organização dentro da área selecionada.
+                      </p>
+                    )}
+                  {showOrganizations &&
+                    !placesLoading &&
+                    volunteerPlaces.length === 0 && (
+                      <p className="mt-1 text-emerald-700">
+                        Não encontrámos organizações de voluntariado nesta área.
+                      </p>
+                    )}
                   {pendingGeocodeCount > 0 && (
                     <p className="mt-1 text-emerald-700">
                       A localizar automaticamente {pendingGeocodeCount}{" "}
@@ -892,6 +1226,36 @@ const MapExplorer = () => {
                   onCircleComplete={handleCircleComplete}
                   options={drawingManagerOptions}
                 />
+
+                {proximityCircleCenter &&
+                  typeof proximityCircleRadius === "number" &&
+                  Number.isFinite(proximityCircleRadius) && (
+                    <Circle
+                      center={proximityCircleCenter}
+                      radius={proximityCircleRadius}
+                      options={{
+                        fillColor: "#f97316",
+                        fillOpacity: 0.08,
+                        strokeColor: "#f97316",
+                        strokeOpacity: 0.6,
+                        strokeWeight: 2,
+                        clickable: false,
+                        zIndex: 5,
+                      }}
+                    />
+                  )}
+
+                {userLocation && (
+                  <Marker
+                    position={userLocation}
+                    icon={userIcon}
+                    zIndex={1000}
+                    onClick={() => {
+                      setSelectedEventId(null);
+                      setSelectedPlaceId(null);
+                    }}
+                  />
+                )}
 
                 {activeArea?.type === "polygon" && (
                   <Polygon
@@ -949,7 +1313,7 @@ const MapExplorer = () => {
                   })}
 
                 {showOrganizations &&
-                  volunteerPlaces.map((place) => (
+                  filteredVolunteerPlaces.map((place) => (
                     <Marker
                       key={place.id}
                       position={place.location}
