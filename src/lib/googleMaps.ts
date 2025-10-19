@@ -57,7 +57,7 @@ export const IDEALISTA_MAP_STYLE: google.maps.MapTypeStyle[] = [
   {
     featureType: "transit",
     elementType: "all",
-    stylers: [{ visibility: "off" }],
+    stylers: [{ visualization: "off" }],
   },
   {
     featureType: "water",
