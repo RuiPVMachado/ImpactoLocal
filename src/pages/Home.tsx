@@ -43,25 +43,27 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <section className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white py-20 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-bold mb-6">
+      <section className="relative isolate overflow-hidden bg-hero-banner bg-cover bg-center py-20 px-4 text-white sm:py-24">
+        <div className="absolute inset-0 bg-brand-secondary/40 mix-blend-multiply" />
+        <div className="absolute inset-0 bg-brand-background/40" />
+        <div className="relative max-w-6xl mx-auto text-center">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-6 drop-shadow-md">
             Conectando Voluntários a Causas que Importam
           </h1>
-          <p className="text-xl md:text-2xl mb-8 text-emerald-50">
+          <p className="text-lg sm:text-xl md:text-2xl mb-10 text-brand-background/90">
             Encontre oportunidades de voluntariado na sua comunidade e faça a
             diferença
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/register"
-              className="bg-white text-emerald-700 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-emerald-50 transition"
+              className="w-full bg-brand-primary text-white px-8 py-4 rounded-button font-semibold text-lg transition hover:bg-brand-primaryHover sm:w-auto"
             >
               Começar Agora
             </Link>
             <Link
               to="/events"
-              className="border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-emerald-700 transition"
+              className="w-full border-2 border-white/80 text-white px-8 py-4 rounded-button font-semibold text-lg transition hover:bg-white hover:text-brand-secondary sm:w-auto"
             >
               Ver Eventos
             </Link>
@@ -69,46 +71,46 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="py-16 px-4 bg-white">
+      <section className="py-14 px-4 bg-white/90 sm:py-16">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
+          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-10 sm:mb-12 text-gray-900">
             Como Funciona
           </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Search className="h-10 w-10 text-emerald-600" />
+          <div className="grid gap-8 md:grid-cols-3">
+            <div className="text-center space-y-4">
+              <div className="bg-brand-secondary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Search className="h-10 w-10 text-brand-secondary" />
               </div>
               <h3 className="text-2xl font-bold mb-4 text-gray-900">
                 1. Pesquise
               </h3>
-              <p className="text-gray-600">
+              <p className="text-brand-neutral text-base">
                 Encontre oportunidades de voluntariado na sua área através da
                 nossa plataforma
               </p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Calendar className="h-10 w-10 text-emerald-600" />
+            <div className="text-center space-y-4">
+              <div className="bg-brand-secondary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Calendar className="h-10 w-10 text-brand-secondary" />
               </div>
               <h3 className="text-2xl font-bold mb-4 text-gray-900">
                 2. Candidate-se
               </h3>
-              <p className="text-gray-600">
+              <p className="text-brand-neutral text-base">
                 Inscreva-se nos eventos que despertam o seu interesse e combine
                 com os seus valores
               </p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Heart className="h-10 w-10 text-emerald-600" />
+            <div className="text-center space-y-4">
+              <div className="bg-brand-secondary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Heart className="h-10 w-10 text-brand-secondary" />
               </div>
               <h3 className="text-2xl font-bold mb-4 text-gray-900">
                 3. Faça a Diferença
               </h3>
-              <p className="text-gray-600">
+              <p className="text-brand-neutral text-base">
                 Participe e contribua ativamente para causas que transformam a
                 comunidade
               </p>
@@ -117,18 +119,18 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="py-16 px-4 bg-gray-50">
+      <section className="py-14 px-4 bg-brand-background sm:py-16">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center mb-4">
-            <TrendingUp className="h-8 w-8 text-emerald-600 mr-3" />
-            <h2 className="text-4xl font-bold text-center text-gray-900">
+            <TrendingUp className="h-8 w-8 text-brand-secondary mr-3" />
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
               Eventos em Destaque
             </h2>
           </div>
-          <p className="text-center text-gray-600 mb-12 text-lg">
+          <p className="text-center text-brand-neutral mb-10 text-base sm:text-lg">
             Oportunidades populares que precisam de voluntários agora
           </p>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+          <div className="grid gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-3 sm:gap-8">
             {loadingEvents ? (
               <div className="col-span-full text-center text-gray-500">
                 A carregar eventos em destaque...
@@ -152,29 +154,11 @@ export default function Home() {
           <div className="text-center">
             <Link
               to="/events"
-              className="inline-block bg-emerald-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition"
+              className="inline-block bg-brand-primary text-white px-8 py-3 rounded-button font-semibold transition hover:bg-brand-primaryHover"
             >
               Ver Todos os Eventos
             </Link>
           </div>
-        </div>
-      </section>
-
-      <section className="py-16 px-4 bg-emerald-600 text-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl font-bold mb-6">
-            Pronto para Fazer a Diferença?
-          </h2>
-          <p className="text-xl mb-8">
-            Junte-se a milhares de voluntários e organizações que estão a
-            transformar comunidades
-          </p>
-          <Link
-            to="/register"
-            className="inline-block bg-white text-emerald-700 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-emerald-50 transition"
-          >
-            Criar Conta Gratuita
-          </Link>
         </div>
       </section>
     </div>

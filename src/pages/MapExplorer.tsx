@@ -1027,7 +1027,10 @@ const MapExplorer = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-6 px-4">
-      <div className="max-w-7xl mx-auto">
+      <div
+        className="max-w-7xl mx-auto"
+        style={{ minHeight: isLoaded ? undefined : "calc(100vh - 7rem)" }}
+      >
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
             Mapa Interativo de Oportunidades
@@ -1038,11 +1041,8 @@ const MapExplorer = () => {
           </p>
         </div>
 
-        <div
-          className="grid gap-6 lg:grid-cols-[360px_1fr]"
-          style={{ height: "calc(100vh - 13rem)" }}
-        >
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 overflow-y-auto">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[360px_1fr] lg:gap-6 lg:h-[calc(100vh-13rem)]">
+          <div className="order-2 lg:order-1 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 lg:overflow-y-auto lg:pr-3">
             <div className="flex items-center gap-2 text-emerald-600 font-semibold">
               <Filter className="h-5 w-5" />
               <span>Filtros e Camadas</span>
@@ -1205,7 +1205,7 @@ const MapExplorer = () => {
             </div>
           </div>
 
-          <div className="relative h-full rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+          <div className="order-1 lg:order-2 relative min-h-[360px] sm:min-h-[480px] lg:h-full rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
             {!isLoaded ? (
               <div className="flex h-full items-center justify-center">
                 <div className="flex flex-col items-center">
@@ -1221,7 +1221,7 @@ const MapExplorer = () => {
                 center={mapCenter}
                 zoom={DEFAULT_MAP_ZOOM}
                 options={mapOptions}
-                mapContainerClassName="w-full h-full"
+                mapContainerClassName="w-full h-[320px] sm:h-[420px] lg:h-full"
               >
                 <DrawingManager
                   onPolygonComplete={handlePolygonComplete}

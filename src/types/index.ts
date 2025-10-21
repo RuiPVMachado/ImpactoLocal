@@ -58,6 +58,10 @@ export interface Application {
   appliedAt: string;
   updatedAt: string;
   message?: string | null;
+  attachmentPath?: string | null;
+  attachmentName?: string | null;
+  attachmentMimeType?: string | null;
+  attachmentSizeBytes?: number | null;
   event?: Event;
 }
 

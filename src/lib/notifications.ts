@@ -28,12 +28,17 @@ interface ApplicationRejectedPayload {
 
 interface ApplicationSubmittedPayload {
   type: "application_submitted";
+  organizationId: string;
   organizationEmail: string;
   volunteerName: string;
   volunteerEmail: string;
   eventTitle: string;
+  eventId?: string;
+  applicationId?: string;
   eventDate?: string;
   message?: string;
+  hasAttachment?: boolean;
+  attachmentName?: string;
 }
 
 type NotificationPayload =
@@ -218,12 +223,17 @@ export async function notifyApplicationRejected(params: {
 }
 
 export async function notifyApplicationSubmitted(params: {
+  organizationId: string;
   organizationEmail: string;
   volunteerName: string;
   volunteerEmail: string;
   eventTitle: string;
+  eventId?: string;
+  applicationId?: string;
   eventDate?: string;
   message?: string;
+  hasAttachment?: boolean;
+  attachmentName?: string;
 }): Promise<NotificationResult> {
   console.log("Notifying organization:", params.organizationEmail);
 

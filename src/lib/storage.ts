@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 
 const DEFAULT_AVATAR_BUCKET = "avatars";
 const DEFAULT_EVENT_IMAGES_BUCKET = "event-images";
+const DEFAULT_APPLICATION_ATTACHMENTS_BUCKET = "application-attachments";
 
 const AVATAR_BUCKET =
   import.meta.env.VITE_SUPABASE_STORAGE_AVATARS_BUCKET?.trim() ||
@@ -9,8 +10,15 @@ const AVATAR_BUCKET =
 const EVENT_IMAGES_BUCKET =
   import.meta.env.VITE_SUPABASE_STORAGE_EVENT_IMAGES_BUCKET?.trim() ||
   DEFAULT_EVENT_IMAGES_BUCKET;
+const APPLICATION_ATTACHMENTS_BUCKET =
+  import.meta.env.VITE_SUPABASE_STORAGE_APPLICATION_ATTACHMENTS_BUCKET?.trim() ||
+  DEFAULT_APPLICATION_ATTACHMENTS_BUCKET;
 
-const MANAGED_BUCKETS = new Set([AVATAR_BUCKET, EVENT_IMAGES_BUCKET]);
+const MANAGED_BUCKETS = new Set([
+  AVATAR_BUCKET,
+  EVENT_IMAGES_BUCKET,
+  APPLICATION_ATTACHMENTS_BUCKET,
+]);
 
 export const ALLOWED_IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -21,6 +29,17 @@ export const ALLOWED_IMAGE_MIME_TYPES = [
 
 export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
+export const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+const ALLOWED_ATTACHMENT_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "jpg",
+  "jpeg",
+  "png",
+]);
+
 const FALLBACK_EXTENSION = "jpg";
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -28,6 +47,10 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   "image/jpg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
 };
 
 function generateRandomId(): string {
@@ -120,6 +143,22 @@ export function validateImageFile(file: File): string | null {
   return null;
 }
 
+export function validateApplicationAttachment(file: File): string | null {
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    const megabytes = MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024);
+    return `O ficheiro deve ter no máximo ${megabytes}MB.`;
+  }
+
+  const extension = inferExtension(file).toLowerCase();
+  const normalizedExtension = extension === "jpeg" ? "jpg" : extension;
+
+  if (!ALLOWED_ATTACHMENT_EXTENSIONS.has(normalizedExtension)) {
+    return "Formato não suportado. Utilize PDF, DOC, DOCX, JPG ou PNG.";
+  }
+
+  return null;
+}
+
 export async function uploadUserAvatar(
   userId: string,
   file: File
@@ -165,4 +204,78 @@ export async function removeStorageFileByUrl(publicUrl: string | null) {
 export function getImageConstraintsDescription(): string {
   const megabytes = MAX_IMAGE_SIZE_BYTES / (1024 * 1024);
   return `Formatos suportados: JPG, PNG, WEBP (até ${megabytes}MB).`;
+}
+
+export async function uploadApplicationAttachment(params: {
+  eventId: string;
+  volunteerId: string;
+  file: File;
+}): Promise<{ storagePath: string }> {
+  const extension = inferExtension(params.file).toLowerCase();
+  const normalizedExtension = extension === "jpeg" ? "jpg" : extension;
+  const uniqueId = generateRandomId();
+  const path = `applications/${params.eventId}/${params.volunteerId}-${uniqueId}.${normalizedExtension}`;
+
+  const { data, error } = await supabase.storage
+    .from(APPLICATION_ATTACHMENTS_BUCKET)
+    .upload(path, params.file, {
+      cacheControl: "7200",
+      upsert: false,
+      contentType: params.file.type || undefined,
+    });
+
+  if (error) {
+    console.error("Falha ao enviar ficheiro de candidatura", {
+      path,
+      error,
+    });
+    throw new Error(
+      "Não foi possível carregar o ficheiro. Verifique o formato e tente novamente."
+    );
+  }
+
+  return { storagePath: data?.path ?? path };
+}
+
+export async function removeApplicationAttachment(
+  storagePath: string | null
+): Promise<void> {
+  if (!storagePath) return;
+
+  const { error } = await supabase.storage
+    .from(APPLICATION_ATTACHMENTS_BUCKET)
+    .remove([storagePath]);
+
+  if (error) {
+    console.warn("Falha ao remover ficheiro de candidatura", {
+      storagePath,
+      error,
+    });
+  }
+}
+
+export async function getApplicationAttachmentSignedUrl(
+  storagePath: string,
+  expiresInSeconds = 300
+): Promise<string | null> {
+  if (!storagePath) return null;
+
+  const { data, error } = await supabase.storage
+    .from(APPLICATION_ATTACHMENTS_BUCKET)
+    .createSignedUrl(storagePath, expiresInSeconds);
+
+  if (error) {
+    console.error("Falha ao gerar URL temporário para o anexo", {
+      storagePath,
+      error,
+    });
+    return null;
+  }
+
+  return data?.signedUrl ?? null;
+}
+
+export function getAttachmentConstraintsDescription(): string {
+  const megabytes = MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024);
+  return `Formatos suportados: PDF, DOC, DOCX, JPG, PNG (até ${megabytes}MB).`;
 }

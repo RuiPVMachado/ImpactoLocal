@@ -81,14 +81,14 @@ export default function NotificationBell() {
 
   const getNotificationIcon = (notification: Notification) => {
     if (notification.type === "application_approved") {
-      return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
+      return <CheckCircle2 className="h-4 w-4 text-brand-secondary" />;
     }
 
     if (notification.type === "application_rejected") {
       return <AlertTriangle className="h-4 w-4 text-rose-500" />;
     }
 
-    return <Info className="h-4 w-4 text-emerald-600" />;
+    return <Info className="h-4 w-4 text-brand-secondary" />;
   };
 
   const renderMessage = (notification: Notification) => {
@@ -103,7 +103,7 @@ export default function NotificationBell() {
     <div className="relative">
       <button
         onClick={handleToggle}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition hover:text-emerald-600"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-brand-secondary/20 bg-white text-brand-neutral transition hover:border-brand-secondary/40 hover:text-brand-secondary"
         aria-label="Ver notificações"
         type="button"
       >
@@ -116,13 +116,13 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-80 rounded-xl border border-gray-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <div className="absolute right-0 z-50 mt-3 w-80 rounded-2xl border border-brand-secondary/20 bg-white shadow-soft">
+          <div className="flex items-center justify-between border-b border-brand-secondary/20 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-gray-900">
                 Notificações
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-brand-neutral/70">
                 {unreadCount > 0
                   ? `${unreadCount} notificações por ler`
                   : "Todas as notificações estão lidas"}
@@ -131,7 +131,7 @@ export default function NotificationBell() {
             <button
               onClick={markAllAsRead}
               disabled={markingRead || unreadCount === 0}
-              className="text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-gray-400"
+              className="text-xs font-medium text-brand-secondary hover:text-brand-secondary/80 disabled:cursor-not-allowed disabled:text-gray-400"
               type="button"
             >
               {markingRead ? "A atualizar..." : "Marcar como lidas"}
@@ -145,29 +145,29 @@ export default function NotificationBell() {
                 notificações...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-500">
+              <div className="px-4 py-8 text-center text-sm text-brand-neutral/70">
                 Não tem notificações por agora.
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-brand-secondary/10">
                 {notifications.map((notification) => (
                   <li
                     key={notification.id}
                     className={`flex items-start gap-3 px-4 py-3 text-sm transition ${
-                      notification.read ? "bg-white" : "bg-emerald-50"
+                      notification.read ? "bg-white" : "bg-brand-secondary/10"
                     }`}
                   >
                     <div className="mt-0.5">
                       {getNotificationIcon(notification)}
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-neutral/70">
                         {notification.title}
                       </p>
-                      <p className="mt-1 text-sm text-gray-700">
+                      <p className="mt-1 text-sm text-brand-neutral">
                         {renderMessage(notification)}
                       </p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-brand-neutral/60">
                         {new Date(notification.createdAt).toLocaleString(
                           "pt-PT"
                         )}

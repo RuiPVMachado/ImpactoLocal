@@ -7,6 +7,7 @@ import {
   Loader2,
   MapPin,
   Mail,
+  Download,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -15,6 +16,7 @@ import {
   fetchOrganizationDashboard,
   updateApplicationStatus,
 } from "../lib/api";
+import { getApplicationAttachmentSignedUrl } from "../lib/storage";
 import type {
   ApplicationStats,
   Event,
@@ -107,6 +109,9 @@ export default function OrganizationDashboard() {
   >({});
   const [loading, setLoading] = useState(true);
   const [updatingApplicationId, setUpdatingApplicationId] = useState<
+    string | null
+  >(null);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<
     string | null
   >(null);
 
@@ -234,6 +239,31 @@ export default function OrganizationDashboard() {
     }
   };
 
+  const handleDownloadAttachment = async (
+    application: VolunteerApplication
+  ) => {
+    if (!application.attachmentPath) return;
+
+    try {
+      setDownloadingAttachmentId(application.id);
+      const signedUrl = await getApplicationAttachmentSignedUrl(
+        application.attachmentPath
+      );
+
+      if (!signedUrl) {
+        toast.error("Não foi possível gerar o link do ficheiro.");
+        return;
+      }
+
+      window.open(signedUrl, "_blank", "noopener");
+    } catch (error) {
+      console.error("Erro ao descarregar anexo:", error);
+      toast.error("Não foi possível descarregar o ficheiro.");
+    } finally {
+      setDownloadingAttachmentId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -328,6 +358,30 @@ export default function OrganizationDashboard() {
                             <p className="mt-3 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
                               "{application.message}"
                             </p>
+                          )}
+                          {application.attachmentPath && (
+                            <div className="mt-3 flex flex-col gap-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDownloadAttachment(application)
+                                }
+                                disabled={
+                                  downloadingAttachmentId === application.id
+                                }
+                                className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <Download className="h-4 w-4" />
+                                {downloadingAttachmentId === application.id
+                                  ? "A preparar anexo..."
+                                  : "Descarregar anexo"}
+                              </button>
+                              {application.attachmentName && (
+                                <span className="text-xs text-gray-500">
+                                  Ficheiro: {application.attachmentName}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-3">

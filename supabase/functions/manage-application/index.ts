@@ -21,6 +21,10 @@ type ApplicationRow = {
   applied_at: string;
   updated_at: string;
   message?: string | null;
+  attachment_path?: string | null;
+  attachment_name?: string | null;
+  attachment_mime_type?: string | null;
+  attachment_size_bytes?: number | null;
   event?: Record<string, unknown> | null;
   volunteer?: Record<string, unknown> | null;
 };
@@ -286,6 +290,46 @@ serve(async (req: Request): Promise<Response> => {
   const applicationId = body.applicationId as string | undefined;
   const actorId = body.actorId as string | undefined;
   const message = typeof body.message === "string" ? body.message : null;
+  const attachmentPath = Object.prototype.hasOwnProperty.call(
+    body,
+    "attachmentPath"
+  )
+    ? typeof body.attachmentPath === "string"
+      ? body.attachmentPath
+      : body.attachmentPath === null
+      ? null
+      : undefined
+    : undefined;
+  const attachmentName = Object.prototype.hasOwnProperty.call(
+    body,
+    "attachmentName"
+  )
+    ? typeof body.attachmentName === "string"
+      ? body.attachmentName
+      : body.attachmentName === null
+      ? null
+      : undefined
+    : undefined;
+  const attachmentMimeType = Object.prototype.hasOwnProperty.call(
+    body,
+    "attachmentMimeType"
+  )
+    ? typeof body.attachmentMimeType === "string"
+      ? body.attachmentMimeType
+      : body.attachmentMimeType === null
+      ? null
+      : undefined
+    : undefined;
+  const attachmentSizeBytes = Object.prototype.hasOwnProperty.call(
+    body,
+    "attachmentSizeBytes"
+  )
+    ? typeof body.attachmentSizeBytes === "number"
+      ? body.attachmentSizeBytes
+      : body.attachmentSizeBytes === null
+      ? null
+      : undefined
+    : undefined;
 
   if (!action || !applicationId || !actorId) {
     console.warn("Missing required parameters", {
@@ -400,6 +444,27 @@ serve(async (req: Request): Promise<Response> => {
   if (action === "reapply") {
     updatePayload.applied_at = now;
     updatePayload.message = message ?? null;
+
+    if (attachmentPath !== undefined) {
+      updatePayload.attachment_path = attachmentPath;
+      if (attachmentPath === null) {
+        updatePayload.attachment_name = null;
+        updatePayload.attachment_mime_type = null;
+        updatePayload.attachment_size_bytes = null;
+      }
+    }
+
+    if (attachmentName !== undefined) {
+      updatePayload.attachment_name = attachmentName;
+    }
+
+    if (attachmentMimeType !== undefined) {
+      updatePayload.attachment_mime_type = attachmentMimeType;
+    }
+
+    if (attachmentSizeBytes !== undefined) {
+      updatePayload.attachment_size_bytes = attachmentSizeBytes;
+    }
   }
 
   const { data: updated, error: updateError } = await supabase

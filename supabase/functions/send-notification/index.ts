@@ -1,6 +1,8 @@
 // deno-lint-ignore-file
 // @ts-expect-error - Deno runtime import
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+// @ts-expect-error - Supabase client import for Edge Functions
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: {
   env: {
@@ -29,12 +31,17 @@ type ApplicationRejectedPayload = {
 
 type ApplicationSubmittedPayload = {
   type: "application_submitted";
+  organizationId: string;
   organizationEmail: string;
   volunteerName: string;
   volunteerEmail: string;
   eventTitle: string;
+  eventId?: string;
+  applicationId?: string;
   eventDate?: string;
   message?: string;
+  hasAttachment?: boolean;
+  attachmentName?: string;
 };
 
 type NotificationPayload =
@@ -148,6 +155,43 @@ const buildApprovedEmail = (
   };
 };
 
+const persistApplicationSubmittedNotification = async (
+  payload: ApplicationSubmittedPayload
+) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.warn(
+      "Missing Supabase configuration, skipping in-app notification creation"
+    );
+    return;
+  }
+
+  try {
+    const client = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+      },
+    });
+
+    const summaryMessage = payload.volunteerName
+      ? `Recebeu uma nova candidatura de ${payload.volunteerName} para "${payload.eventTitle}".`
+      : `Recebeu uma nova candidatura para "${payload.eventTitle}".`;
+
+    await client.from("notifications").insert({
+      user_id: payload.organizationId,
+      type: "application_updated",
+      title: "Nova candidatura recebida",
+      message: summaryMessage,
+      status: "pending",
+      link: payload.eventId ? `/events/${payload.eventId}` : null,
+    });
+  } catch (error) {
+    console.error("Failed to persist in-app notification", error);
+  }
+};
+
 const buildRejectedEmail = (
   payload: ApplicationRejectedPayload,
   fromName: string
@@ -232,6 +276,12 @@ const buildApplicationSubmittedEmail = (
     ? `<p><strong>Mensagem do voluntário:</strong><br/><em>${message}</em></p>`
     : "";
 
+  const attachmentLine = payload.hasAttachment
+    ? `<p><strong>Anexo enviado:</strong> ${
+        payload.attachmentName ?? "Ficheiro submetido pelo voluntário"
+      }</p>`
+    : "";
+
   const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937;">
       <p>Olá,</p>
@@ -240,6 +290,7 @@ const buildApplicationSubmittedEmail = (
       <strong>Email:</strong> <a href="mailto:${volunteerEmail}">${volunteerEmail}</a></p>
       ${dateLine}
       ${messageLine}
+      ${attachmentLine}
       <p>Aceda à sua dashboard para gerir esta candidatura.</p>
       <p>Com os melhores cumprimentos,<br/>${fromName}</p>
     </div>
@@ -254,6 +305,9 @@ const buildApplicationSubmittedEmail = (
       ? `Data do evento: ${new Date(eventDate).toLocaleString("pt-PT")}`
       : "",
     message ? `Mensagem: ${message}` : "",
+    payload.hasAttachment
+      ? `Anexo enviado: ${payload.attachmentName ?? "Ficheiro submetido"}`
+      : "",
     "Aceda à sua dashboard para gerir esta candidatura.",
     `Com os melhores cumprimentos,\n${fromName}`,
   ]
@@ -507,6 +561,10 @@ serve(async (request: Request) => {
         },
       }
     );
+  }
+
+  if (payload.type === "application_submitted") {
+    await persistApplicationSubmittedNotification(payload);
   }
 
   return sendEmail(payload, resendApiKey, fromEmail, fromName);

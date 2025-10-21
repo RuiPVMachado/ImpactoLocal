@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -20,7 +20,13 @@ import {
   fetchEventById,
 } from "../lib/api";
 import { formatDurationWithHours } from "../lib/formatters";
-import type { ApplicationStatus, Event } from "../types";
+import {
+  getAttachmentConstraintsDescription,
+  removeApplicationAttachment,
+  uploadApplicationAttachment,
+  validateApplicationAttachment,
+} from "../lib/storage";
+import type { Application, ApplicationStatus, Event } from "../types";
 
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
@@ -30,8 +36,17 @@ export default function EventDetails() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [message, setMessage] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [applicationStatus, setApplicationStatus] =
     useState<ApplicationStatus | null>(null);
+  const [existingApplication, setExistingApplication] =
+    useState<Application | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentConstraintsText = useMemo(
+    () => getAttachmentConstraintsDescription(),
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -70,14 +85,17 @@ export default function EventDetails() {
     const verifyApplication = async () => {
       if (!event || !user || user.type !== "volunteer") {
         setApplicationStatus(null);
+        setExistingApplication(null);
         return;
       }
       try {
         const existing = await checkExistingApplication(event.id, user.id);
         if (existing) {
           setApplicationStatus(existing.status);
+          setExistingApplication(existing);
         } else {
           setApplicationStatus(null);
+          setExistingApplication(null);
         }
       } catch (error) {
         console.error("Erro ao verificar candidatura existente:", error);
@@ -121,18 +139,89 @@ export default function EventDetails() {
       return;
     }
 
+    const normalizedMessage = message.trim();
+    const hasTypedMessage = normalizedMessage.length > 0;
+    const existingMessageAvailable = Boolean(
+      existingApplication?.message && applicationStatus === "cancelled"
+    );
+    const hasAttachmentSelected = Boolean(attachmentFile);
+    const existingAttachmentAvailable = Boolean(
+      existingApplication?.attachmentPath && applicationStatus === "cancelled"
+    );
+
+    if (
+      !hasTypedMessage &&
+      !hasAttachmentSelected &&
+      !existingMessageAvailable &&
+      !existingAttachmentAvailable
+    ) {
+      toast.error(
+        "Adicione um ficheiro (PDF, DOC, DOCX, JPG ou PNG) ou escreva uma mensagem para apoiar a candidatura."
+      );
+      return;
+    }
+
+    const previousAttachmentPath = existingApplication?.attachmentPath ?? null;
+    let uploadedAttachmentPath: string | undefined;
+    let attachmentName: string | null | undefined;
+    let attachmentMimeType: string | null | undefined;
+    let attachmentSizeBytes: number | null | undefined;
+
     try {
       setApplying(true);
+      if (attachmentFile) {
+        const validationResult = validateApplicationAttachment(attachmentFile);
+        if (validationResult) {
+          setAttachmentError(validationResult);
+          toast.error(validationResult);
+          setApplying(false);
+          return;
+        }
+
+        const uploadResult = await uploadApplicationAttachment({
+          eventId: event.id,
+          volunteerId: user.id,
+          file: attachmentFile,
+        });
+
+        uploadedAttachmentPath = uploadResult.storagePath;
+        attachmentName = attachmentFile.name;
+        attachmentMimeType = attachmentFile.type || null;
+        attachmentSizeBytes = attachmentFile.size;
+      }
+
       const application = await applyToEvent({
         eventId: event.id,
         volunteerId: user.id,
-        message: message.trim() ? message.trim() : undefined,
+        message: hasTypedMessage ? normalizedMessage : undefined,
+        ...(uploadedAttachmentPath !== undefined
+          ? {
+              attachmentPath: uploadedAttachmentPath,
+              attachmentName,
+              attachmentMimeType,
+              attachmentSizeBytes,
+            }
+          : {}),
       });
       setApplicationStatus(application.status as ApplicationStatus);
       setMessage("");
+      setAttachmentFile(null);
+      setAttachmentError(null);
+      setExistingApplication(application);
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = "";
+      }
       toast.success(
         "Candidatura enviada! Aguardando aprovação da organização."
       );
+
+      if (
+        uploadedAttachmentPath &&
+        previousAttachmentPath &&
+        uploadedAttachmentPath !== previousAttachmentPath
+      ) {
+        void removeApplicationAttachment(previousAttachmentPath);
+      }
     } catch (error: unknown) {
       if (typeof error === "object" && error !== null && "code" in error) {
         const supabaseError = error as { code?: string; message?: string };
@@ -149,8 +238,46 @@ export default function EventDetails() {
         console.error("Erro ao enviar candidatura:", error);
         toast.error("Não foi possível enviar a candidatura.");
       }
+
+      if (
+        uploadedAttachmentPath &&
+        uploadedAttachmentPath !== previousAttachmentPath
+      ) {
+        void removeApplicationAttachment(uploadedAttachmentPath);
+      }
     } finally {
       setApplying(false);
+    }
+  };
+
+  const handleAttachmentChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) {
+      setAttachmentFile(null);
+      setAttachmentError(null);
+      return;
+    }
+
+    const validationResult = validateApplicationAttachment(file);
+    if (validationResult) {
+      setAttachmentFile(null);
+      setAttachmentError(validationResult);
+      toast.error(validationResult);
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setAttachmentFile(file);
+    setAttachmentError(null);
+  };
+
+  const handleAttachmentClear = () => {
+    setAttachmentFile(null);
+    setAttachmentError(null);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = "";
     }
   };
 
@@ -352,23 +479,77 @@ export default function EventDetails() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <label
-                htmlFor="message"
-                className="text-sm font-medium text-gray-700"
-              >
-                Mensagem para a organização (opcional)
-              </label>
-              <textarea
-                id="message"
-                value={message}
-                onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                  setMessage(event.target.value)
-                }
-                rows={4}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                placeholder="Partilhe a sua motivação ou experiência relevante."
-              />
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <label
+                  htmlFor="application-attachment"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Currículo ou ficheiro de apoio (opcional)
+                </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input
+                    ref={attachmentInputRef}
+                    id="application-attachment"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={handleAttachmentChange}
+                    disabled={applying}
+                    className="w-full max-w-md rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed"
+                  />
+                  {attachmentFile && (
+                    <button
+                      type="button"
+                      onClick={handleAttachmentClear}
+                      className="inline-flex items-center justify-center rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+                    >
+                      Remover ficheiro
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500">
+                  {attachmentConstraintsText}. Recomendamos anexar um CV ou
+                  breve apresentação para aumentar as hipóteses de aprovação.
+                </p>
+                {attachmentFile && (
+                  <p className="text-sm text-gray-600">
+                    Ficheiro selecionado: <strong>{attachmentFile.name}</strong>
+                  </p>
+                )}
+                {!attachmentFile &&
+                  existingApplication?.attachmentName &&
+                  applicationStatus === "cancelled" && (
+                    <p className="text-sm text-emerald-600">
+                      Ficheiro anterior guardado:{" "}
+                      <strong>{existingApplication.attachmentName}</strong>
+                    </p>
+                  )}
+                {attachmentError && (
+                  <p className="text-sm text-rose-600">{attachmentError}</p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <label
+                  htmlFor="message"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Mensagem para a organização (opcional)
+                </label>
+                <p className="text-sm text-gray-500">
+                  Obrigatória apenas se não anexar ficheiro.
+                </p>
+                <textarea
+                  id="message"
+                  value={message}
+                  onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+                    setMessage(event.target.value)
+                  }
+                  rows={4}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="Partilhe a sua motivação, experiência relevante ou outras informações úteis."
+                />
+              </div>
             </div>
 
             <div className="space-y-4">

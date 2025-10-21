@@ -4,6 +4,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Download,
   Hourglass,
   Loader2,
   MapPin,
@@ -15,6 +16,7 @@ import {
 import { toast } from "react-hot-toast";
 import { cancelApplication, fetchApplicationsByVolunteer } from "../lib/api";
 import { useAuth } from "../context/useAuth";
+import { getApplicationAttachmentSignedUrl } from "../lib/storage";
 import type { Application } from "../types";
 
 type StatusKey = Application["status"];
@@ -67,6 +69,9 @@ export default function MyApplications() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     let active = true;
@@ -139,6 +144,29 @@ export default function MyApplications() {
       toast.error("Não foi possível cancelar a candidatura.");
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handleDownloadAttachment = async (application: Application) => {
+    if (!application.attachmentPath) return;
+
+    try {
+      setDownloadingAttachmentId(application.id);
+      const signedUrl = await getApplicationAttachmentSignedUrl(
+        application.attachmentPath
+      );
+
+      if (!signedUrl) {
+        toast.error("Não foi possível gerar o link do ficheiro.");
+        return;
+      }
+
+      window.open(signedUrl, "_blank", "noopener");
+    } catch (error) {
+      console.error("Erro ao descarregar ficheiro:", error);
+      toast.error("Não foi possível descarregar o ficheiro.");
+    } finally {
+      setDownloadingAttachmentId(null);
     }
   };
 
@@ -267,6 +295,28 @@ export default function MyApplications() {
                       <p className="mt-3 text-sm text-slate-600">
                         {status.description}
                       </p>
+
+                      {application.message && (
+                        <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                          "{application.message}"
+                        </p>
+                      )}
+
+                      {application.attachmentPath && (
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadAttachment(application)}
+                          disabled={downloadingAttachmentId === application.id}
+                          className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Download className="h-4 w-4" />
+                          {downloadingAttachmentId === application.id
+                            ? "A preparar ficheiro..."
+                            : application.attachmentName
+                            ? `Descarregar ${application.attachmentName}`
+                            : "Descarregar ficheiro"}
+                        </button>
+                      )}
 
                       {application.status === "approved" && (
                         <p className="mt-3 rounded-lg bg-emerald-100 px-4 py-3 text-sm text-emerald-800">

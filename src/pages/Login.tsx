@@ -28,19 +28,19 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-100 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-brand-background flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white/95 border border-brand-secondary/10 rounded-3xl shadow-soft p-8 backdrop-blur-sm">
           <div className="flex justify-center mb-6">
-            <div className="bg-emerald-100 p-3 rounded-full">
-              <Heart className="h-12 w-12 text-emerald-600" />
+            <div className="bg-brand-primary/15 p-3 rounded-full">
+              <Heart className="h-12 w-12 text-brand-primary" />
             </div>
           </div>
 
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Bem-vindo de volta
           </h2>
-          <p className="text-center text-gray-600 mb-8">
+          <p className="text-center text-brand-neutral mb-8">
             Entre para continuar a fazer a diferença
           </p>
 
@@ -55,7 +55,7 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-brand-secondary/20 rounded-button focus:ring-2 focus:ring-brand-secondary/40 focus:border-brand-secondary/60"
                   placeholder="seu@email.com"
                   required
                 />
@@ -72,7 +72,7 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-brand-secondary/20 rounded-button focus:ring-2 focus:ring-brand-secondary/40 focus:border-brand-secondary/60"
                   placeholder="••••••••"
                   required
                 />
@@ -83,13 +83,15 @@ export default function Login() {
               <label className="flex items-center">
                 <input
                   type="checkbox"
-                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                  className="rounded border-brand-secondary/30 text-brand-secondary focus:ring-brand-secondary/40"
                 />
-                <span className="ml-2 text-sm text-gray-600">Lembrar-me</span>
+                <span className="ml-2 text-sm text-brand-neutral">
+                  Lembrar-me
+                </span>
               </label>
               <Link
                 to="/forgot-password"
-                className="text-sm text-emerald-600 hover:text-emerald-700"
+                className="text-sm font-semibold text-brand-secondary hover:text-brand-secondary/80"
               >
                 Esqueceu a password?
               </Link>
@@ -98,17 +100,17 @@ export default function Login() {
             <button
               type="submit"
               disabled={authLoading}
-              className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 transition font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full bg-brand-primary text-white py-3 rounded-button transition font-semibold hover:bg-brand-primaryHover disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {authLoading ? "A entrar..." : "Entrar"}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-gray-600">
+          <p className="mt-6 text-center text-brand-neutral">
             Não tem conta?{" "}
             <Link
               to="/register"
-              className="text-emerald-600 hover:text-emerald-700 font-semibold"
+              className="text-brand-secondary hover:text-brand-secondary/80 font-semibold"
             >
               Registe-se aqui
             </Link>

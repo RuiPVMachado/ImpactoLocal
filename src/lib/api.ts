@@ -47,6 +47,10 @@ type ApplicationPayload = {
   eventId: string;
   volunteerId: string;
   message?: string | null;
+  attachmentPath?: string | null;
+  attachmentName?: string | null;
+  attachmentMimeType?: string | null;
+  attachmentSizeBytes?: number | null;
 };
 
 type UpdateProfilePayload = {
@@ -146,6 +150,10 @@ type ApplicationRow = {
   applied_at: string;
   updated_at: string;
   message?: string | null;
+  attachment_path?: string | null;
+  attachment_name?: string | null;
+  attachment_mime_type?: string | null;
+  attachment_size_bytes?: number | null;
   event?: EventRow | null;
   volunteer?: ProfileSummaryRow | null;
 };
@@ -300,6 +308,10 @@ const toApplication = (row: ApplicationRow): Application => ({
   appliedAt: row.applied_at,
   updatedAt: row.updated_at,
   message: row.message ?? null,
+  attachmentPath: row.attachment_path ?? null,
+  attachmentName: row.attachment_name ?? null,
+  attachmentMimeType: row.attachment_mime_type ?? null,
+  attachmentSizeBytes: row.attachment_size_bytes ?? null,
   event: row.event ? toEvent(row.event) : undefined,
 });
 
@@ -325,16 +337,28 @@ const handleApplicationSubmissionNotification = (
   messageOverride?: string
 ): VolunteerApplication => {
   const organizationEmail = application.event?.organization?.email ?? null;
+  const organizationId = application.event?.organization?.id ?? null;
+  const eventId = application.event?.id ?? null;
   const volunteerEmail = application.volunteer?.email ?? null;
 
-  if (organizationEmail && volunteerEmail && application.event) {
+  if (
+    organizationEmail &&
+    volunteerEmail &&
+    application.event &&
+    organizationId
+  ) {
     void notifyApplicationSubmitted({
+      organizationId,
       organizationEmail,
       volunteerName: application.volunteer?.name ?? "Voluntário",
       volunteerEmail,
       eventTitle: application.event.title,
+      eventId: eventId ?? undefined,
+      applicationId: application.id,
       eventDate: application.event.date,
       message: messageOverride ?? application.message ?? undefined,
+      hasAttachment: Boolean(application.attachmentPath),
+      attachmentName: application.attachmentName ?? undefined,
     });
   }
 
@@ -555,22 +579,44 @@ async function invokeManageApplication(params: {
   applicationId: string;
   actorId: string;
   message?: string;
+  attachmentPath?: string | null;
+  attachmentName?: string | null;
+  attachmentMimeType?: string | null;
+  attachmentSizeBytes?: number | null;
 }): Promise<{
   application: VolunteerApplication;
   notificationStatus: NotificationStatus;
   notificationError: string | null;
 }> {
-  const { action, applicationId, actorId, message } = params;
+  const {
+    action,
+    applicationId,
+    actorId,
+    message,
+    attachmentPath,
+    attachmentName,
+    attachmentMimeType,
+    attachmentSizeBytes,
+  } = params;
+
+  const bodyPayload: Record<string, unknown> = {
+    action,
+    applicationId,
+    actorId,
+  };
+
+  if (message !== undefined) bodyPayload.message = message;
+  if (attachmentPath !== undefined) bodyPayload.attachmentPath = attachmentPath;
+  if (attachmentName !== undefined) bodyPayload.attachmentName = attachmentName;
+  if (attachmentMimeType !== undefined)
+    bodyPayload.attachmentMimeType = attachmentMimeType;
+  if (attachmentSizeBytes !== undefined)
+    bodyPayload.attachmentSizeBytes = attachmentSizeBytes;
 
   const { data, error } = await supabase.functions.invoke(
     "manage-application",
     {
-      body: {
-        action,
-        applicationId,
-        actorId,
-        ...(message !== undefined ? { message } : {}),
-      },
+      body: bodyPayload,
     }
   );
 
@@ -854,6 +900,10 @@ export async function applyToEvent(
       applicationId: existingApplication.id,
       actorId: payload.volunteerId,
       message: payload.message ?? undefined,
+      attachmentPath: payload.attachmentPath,
+      attachmentName: payload.attachmentName,
+      attachmentMimeType: payload.attachmentMimeType,
+      attachmentSizeBytes: payload.attachmentSizeBytes,
     });
 
     return handleApplicationSubmissionNotification(
@@ -868,6 +918,18 @@ export async function applyToEvent(
       event_id: payload.eventId,
       volunteer_id: payload.volunteerId,
       message: payload.message ?? null,
+      attachment_path:
+        payload.attachmentPath !== undefined ? payload.attachmentPath : null,
+      attachment_name:
+        payload.attachmentName !== undefined ? payload.attachmentName : null,
+      attachment_mime_type:
+        payload.attachmentMimeType !== undefined
+          ? payload.attachmentMimeType
+          : null,
+      attachment_size_bytes:
+        payload.attachmentSizeBytes !== undefined
+          ? payload.attachmentSizeBytes
+          : null,
     })
     .select(APPLICATION_SELECT)
     .single<ApplicationRow>();
