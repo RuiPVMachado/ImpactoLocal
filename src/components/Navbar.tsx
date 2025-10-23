@@ -27,7 +27,9 @@ export default function Navbar() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isHamburgerVisible, setIsHamburgerVisible] = useState(true);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollYRef = useRef(0);
 
   const primaryLinks = [
     { to: "/events", label: "Eventos", icon: Calendar },
@@ -100,6 +102,68 @@ export default function Navbar() {
       }
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const updateScrollReference = () => {
+      lastScrollYRef.current = window.scrollY;
+    };
+
+    const handleScroll = () => {
+      if (window.innerWidth >= 1024) {
+        setIsHamburgerVisible(true);
+        updateScrollReference();
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY <= 0) {
+        setIsHamburgerVisible(true);
+        lastScrollYRef.current = 0;
+        return;
+      }
+
+      const previousScrollY = lastScrollYRef.current;
+      const isScrollingDown = currentScrollY > previousScrollY + 4;
+      const isScrollingUp = currentScrollY < previousScrollY - 4;
+
+      if (isScrollingDown) {
+        setIsHamburgerVisible(false);
+      } else if (isScrollingUp) {
+        setIsHamburgerVisible(true);
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsHamburgerVisible(true);
+      }
+      updateScrollReference();
+    };
+
+    updateScrollReference();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    lastScrollYRef.current = window.scrollY;
+  }, [isMobileMenuOpen]);
 
   return (
     <nav className="bg-brand-background/95 sticky top-0 z-50 border-b border-brand-surfaceAlt/70 backdrop-blur-sm">
@@ -219,9 +283,14 @@ export default function Navbar() {
 
           <button
             type="button"
-            className="lg:hidden rounded-button border border-brand-secondary/20 bg-white/80 p-2 text-brand-neutral shadow-soft transition hover:border-brand-secondary/40 hover:text-brand-secondary"
+            className={`lg:hidden rounded-button border border-brand-secondary/20 bg-white/80 p-2 text-brand-neutral shadow-soft transition hover:border-brand-secondary/40 hover:text-brand-secondary duration-200 ${
+              !isHamburgerVisible
+                ? "pointer-events-none opacity-0"
+                : "opacity-100"
+            }`}
             onClick={() => {
               setIsMobileMenuOpen((current) => !current);
+              setIsHamburgerVisible(true);
               if (isMoreMenuOpen) {
                 setIsMoreMenuOpen(false);
               }
@@ -296,7 +365,7 @@ export default function Navbar() {
                   </button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-3">
                   {isAuthenticated ? (
                     <>
                       <div className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 shadow-soft">
@@ -337,14 +406,14 @@ export default function Navbar() {
                       <Link
                         to="/login"
                         onClick={closeMenus}
-                        className="flex items-center justify-center rounded-2xl border border-brand-secondary/20 bg-white/90 px-4 py-3 text-sm font-semibold text-brand-secondary transition hover:border-brand-secondary/40"
+                        className="flex flex-1 items-center justify-center rounded-2xl border border-brand-secondary/20 bg-white/90 px-4 py-3 text-sm font-semibold text-brand-secondary transition hover:border-brand-secondary/40"
                       >
                         Entrar
                       </Link>
                       <Link
                         to="/register"
                         onClick={closeMenus}
-                        className="flex items-center justify-center rounded-2xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
+                        className="flex flex-1 items-center justify-center rounded-2xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
                       >
                         Criar Conta Gratuita
                       </Link>
