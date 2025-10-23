@@ -16,7 +16,7 @@ import {
 } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { fetchProfileById } from "../lib/api";
-import type { Profile, UserRole } from "../types";
+import type { OrganizationImpactStats, Profile, UserRole } from "../types";
 
 interface AuthResponse {
   success: boolean;
@@ -68,6 +68,11 @@ type ProfileUpsertPayload = {
   phone?: string | null;
   bio?: string | null;
   location?: string | null;
+  mission?: string | null;
+  vision?: string | null;
+  history?: string | null;
+  galleryUrls?: string[];
+  impactStats?: OrganizationImpactStats | null;
 };
 
 const allowedRoles: UserRole[] = ["volunteer", "organization", "admin"];
@@ -112,6 +117,17 @@ function extractProfilePayloadFromUser(user: User): ProfileUpsertPayload {
     return null;
   };
 
+  const mission = normalizeOptional(metadata.mission);
+  const vision = normalizeOptional(metadata.vision);
+  const history = normalizeOptional(metadata.history);
+
+  const galleryUrls = Array.isArray(metadata.gallery_urls)
+    ? (metadata.gallery_urls as unknown[])
+        .filter((url): url is string => typeof url === "string")
+        .map((url) => url.trim())
+        .filter((url) => url.length > 0)
+    : [];
+
   return {
     email: user.email ?? emailFromMetadata ?? `${user.id}@placeholder.local`,
     name: nameFromMetadata ?? user.email ?? "Utilizador",
@@ -120,6 +136,11 @@ function extractProfilePayloadFromUser(user: User): ProfileUpsertPayload {
     phone: normalizeOptional(metadata.phone),
     bio: normalizeOptional(metadata.bio),
     location: normalizeOptional(metadata.location),
+    mission,
+    vision,
+    history,
+    galleryUrls,
+    impactStats: null,
   };
 }
 
@@ -134,6 +155,11 @@ function buildProfileFromAuthUser(user: User): Profile {
     phone: payload.phone ?? null,
     bio: payload.bio ?? null,
     location: payload.location ?? null,
+    mission: payload.mission ?? null,
+    vision: payload.vision ?? null,
+    history: payload.history ?? null,
+    galleryUrls: payload.galleryUrls ?? [],
+    impactStats: payload.impactStats ?? null,
     createdAt: user.created_at ?? new Date().toISOString(),
     updatedAt: user.updated_at ?? new Date().toISOString(),
   };
@@ -162,6 +188,42 @@ async function createProfileRecord(
   userId: string,
   payload: ProfileUpsertPayload
 ) {
+  const normalizeText = (value?: string | null): string | null => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  const sanitizeGalleryUrls = (urls?: string[]): string[] => {
+    if (!Array.isArray(urls)) return [];
+    return urls
+      .filter((url): url is string => typeof url === "string")
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0);
+  };
+
+  const normalizeStatValue = (
+    value: number | null | undefined
+  ): number | null => {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    const rounded = Math.round(value);
+    return rounded < 0 ? 0 : rounded;
+  };
+
+  const mission = normalizeText(payload.mission ?? null);
+  const vision = normalizeText(payload.vision ?? null);
+  const history = normalizeText(payload.history ?? null);
+  const galleryUrls = sanitizeGalleryUrls(payload.galleryUrls);
+
+  const stats = payload.impactStats ?? null;
+  const statsEventsHeld = normalizeStatValue(stats?.eventsHeld);
+  const statsVolunteersImpacted = normalizeStatValue(stats?.volunteersImpacted);
+  const statsHoursContributed = normalizeStatValue(stats?.hoursContributed);
+  const statsBeneficiariesServed = normalizeStatValue(
+    stats?.beneficiariesServed
+  );
+
   const { error } = await supabase.from("profiles").upsert(
     {
       id: userId,
@@ -172,6 +234,14 @@ async function createProfileRecord(
       phone: payload.phone ?? null,
       bio: payload.bio ?? null,
       location: payload.location ?? null,
+      mission,
+      vision,
+      history,
+      gallery_urls: galleryUrls,
+      stats_events_held: statsEventsHeld,
+      stats_volunteers_impacted: statsVolunteersImpacted,
+      stats_hours_contributed: statsHoursContributed,
+      stats_beneficiaries_served: statsBeneficiariesServed,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "id" }

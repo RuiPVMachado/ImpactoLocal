@@ -54,6 +54,7 @@ export default function Navbar() {
 
   if (user?.type === "organization") {
     accountLinks.push(
+      { to: "/profile", label: "Perfil", icon: User },
       { to: "/organization/dashboard", label: "Dashboard", icon: Home },
       { to: "/organization/events", label: "Meus Eventos", icon: Calendar }
     );

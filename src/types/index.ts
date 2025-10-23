@@ -9,8 +9,20 @@ export interface Profile {
   phone?: string | null;
   bio?: string | null;
   location?: string | null;
+  mission?: string | null;
+  vision?: string | null;
+  history?: string | null;
+  galleryUrls?: string[];
+  impactStats?: OrganizationImpactStats | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OrganizationImpactStats {
+  eventsHeld?: number | null;
+  volunteersImpacted?: number | null;
+  hoursContributed?: number | null;
+  beneficiariesServed?: number | null;
 }
 
 export type ProfileSummary = Pick<Profile, "id" | "name"> & {
@@ -119,4 +131,9 @@ export interface Notification {
   link?: string | null;
   read: boolean;
   createdAt: string;
+}
+
+export interface OrganizationPublicProfile {
+  organization: Profile;
+  events: Event[];
 }

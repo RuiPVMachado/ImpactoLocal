@@ -8,6 +8,8 @@ import type {
   Event,
   Notification,
   OrganizationDashboardSummary,
+  OrganizationImpactStats,
+  OrganizationPublicProfile,
   Profile,
   ProfileSummary,
   UserRole,
@@ -61,6 +63,11 @@ type UpdateProfilePayload = {
   bio?: string | null;
   location?: string | null;
   avatarUrl?: string | null;
+  mission?: string | null;
+  vision?: string | null;
+  history?: string | null;
+  galleryUrls?: string[] | null;
+  impactStats?: OrganizationImpactStats | null;
 };
 
 type NotificationStatus = "sent" | "failed" | "skipped";
@@ -109,6 +116,14 @@ type ProfileRow = {
   phone?: string | null;
   bio?: string | null;
   location?: string | null;
+  mission?: string | null;
+  vision?: string | null;
+  history?: string | null;
+  gallery_urls?: string[] | null;
+  stats_events_held?: number | null;
+  stats_volunteers_impacted?: number | null;
+  stats_hours_contributed?: number | null;
+  stats_beneficiaries_served?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -251,18 +266,48 @@ function isPermissionDeniedError(error: unknown): boolean {
   return false;
 }
 
-const toProfile = (row: ProfileRow): Profile => ({
-  id: row.id,
-  email: row.email,
-  name: row.name,
-  type: row.type,
-  avatarUrl: row.avatar_url ?? null,
-  phone: row.phone ?? null,
-  bio: row.bio ?? null,
-  location: row.location ?? null,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-});
+const toProfile = (row: ProfileRow): Profile => {
+  const galleryUrls = Array.isArray(row.gallery_urls)
+    ? row.gallery_urls
+        .filter((url): url is string => typeof url === "string")
+        .map((url) => url.trim())
+        .filter((url) => url.length > 0)
+    : [];
+
+  const hasImpactStats = [
+    row.stats_events_held,
+    row.stats_volunteers_impacted,
+    row.stats_hours_contributed,
+    row.stats_beneficiaries_served,
+  ].some((value) => value !== undefined && value !== null);
+
+  const impactStats = hasImpactStats
+    ? {
+        eventsHeld: row.stats_events_held ?? null,
+        volunteersImpacted: row.stats_volunteers_impacted ?? null,
+        hoursContributed: row.stats_hours_contributed ?? null,
+        beneficiariesServed: row.stats_beneficiaries_served ?? null,
+      }
+    : null;
+
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    type: row.type,
+    avatarUrl: row.avatar_url ?? null,
+    phone: row.phone ?? null,
+    bio: row.bio ?? null,
+    location: row.location ?? null,
+    mission: row.mission ?? null,
+    vision: row.vision ?? null,
+    history: row.history ?? null,
+    galleryUrls,
+    impactStats,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
 
 const toProfileSummary = (
   row: ProfileSummaryRow | null | undefined
@@ -684,10 +729,59 @@ export async function updateProfile(
   const phone = normalizeOptional(payload.phone);
   const bio = normalizeOptional(payload.bio);
   const location = normalizeOptional(payload.location);
+  const mission = normalizeOptional(payload.mission);
+  const vision = normalizeOptional(payload.vision);
+  const history = normalizeOptional(payload.history);
   const avatarUrl =
     payload.avatarUrl === undefined
       ? undefined
       : normalizeOptional(payload.avatarUrl);
+
+  const sanitizeGalleryUrls = (urls: string[] | null | undefined): string[] => {
+    if (!Array.isArray(urls)) return [];
+    return urls
+      .filter((url): url is string => typeof url === "string")
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0);
+  };
+
+  const galleryUrls =
+    payload.galleryUrls === undefined
+      ? undefined
+      : sanitizeGalleryUrls(payload.galleryUrls);
+
+  const normalizeStatValue = (
+    value: number | null | undefined
+  ): number | null => {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== "number" || !Number.isFinite(value)) return null;
+    const rounded = Math.round(value);
+    return rounded < 0 ? 0 : rounded;
+  };
+
+  let normalizedImpactStats:
+    | {
+        eventsHeld: number | null;
+        volunteersImpacted: number | null;
+        hoursContributed: number | null;
+        beneficiariesServed: number | null;
+      }
+    | undefined;
+
+  if (payload.impactStats !== undefined) {
+    normalizedImpactStats = {
+      eventsHeld: normalizeStatValue(payload.impactStats?.eventsHeld),
+      volunteersImpacted: normalizeStatValue(
+        payload.impactStats?.volunteersImpacted
+      ),
+      hoursContributed: normalizeStatValue(
+        payload.impactStats?.hoursContributed
+      ),
+      beneficiariesServed: normalizeStatValue(
+        payload.impactStats?.beneficiariesServed
+      ),
+    };
+  }
 
   if (!id) {
     throw new Error("ID do perfil é obrigatório.");
@@ -707,11 +801,28 @@ export async function updateProfile(
     phone,
     bio,
     location,
+    mission,
+    vision,
+    history,
     updated_at: new Date().toISOString(),
   };
 
   if (avatarUrl !== undefined) {
     updatePayload.avatar_url = avatarUrl;
+  }
+
+  if (galleryUrls !== undefined) {
+    updatePayload.gallery_urls = galleryUrls;
+  }
+
+  if (normalizedImpactStats !== undefined) {
+    updatePayload.stats_events_held = normalizedImpactStats.eventsHeld;
+    updatePayload.stats_volunteers_impacted =
+      normalizedImpactStats.volunteersImpacted;
+    updatePayload.stats_hours_contributed =
+      normalizedImpactStats.hoursContributed;
+    updatePayload.stats_beneficiaries_served =
+      normalizedImpactStats.beneficiariesServed;
   }
 
   const { data, error } = await supabase
@@ -735,6 +846,9 @@ export async function updateProfile(
     phone: phone ?? undefined,
     bio: bio ?? undefined,
     location: location ?? undefined,
+    mission: mission ?? undefined,
+    vision: vision ?? undefined,
+    history: history ?? undefined,
   };
 
   if (avatarUrl !== undefined) {
@@ -1414,6 +1528,76 @@ export async function fetchOrganizationEvents(
 
   if (error) throw error;
   return (data ?? []).map(toEvent);
+}
+
+export async function fetchOrganizationPublicProfile(
+  organizationId: string
+): Promise<OrganizationPublicProfile | null> {
+  if (!organizationId) {
+    return null;
+  }
+
+  await ensureExpiredEventsProcessed();
+
+  const { data: profileRow, error: profileError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", organizationId)
+    .eq("type", "organization")
+    .maybeSingle<ProfileRow>();
+
+  if (profileError) throw profileError;
+  if (!profileRow) {
+    return null;
+  }
+
+  const organization = toProfile(profileRow);
+
+  const { data: eventsData, error: eventsError } = await supabase
+    .from("events")
+    .select(
+      `*,
+        organization:profiles!events_organization_id_fkey(
+          id,
+          name,
+          email,
+          avatar_url,
+          bio,
+          type
+        )`
+    )
+    .eq("organization_id", organizationId)
+    .order("date", { ascending: false });
+
+  if (eventsError) throw eventsError;
+
+  const events = (eventsData ?? []).map(toEvent);
+
+  const now = new Date();
+  const fallbackEventsHeld = events.filter(
+    (event) => new Date(event.date).getTime() < now.getTime()
+  ).length;
+  const fallbackVolunteersImpacted = events.reduce(
+    (total, event) => total + (event.volunteersRegistered ?? 0),
+    0
+  );
+
+  const mergedImpactStats: OrganizationImpactStats = {
+    eventsHeld: organization.impactStats?.eventsHeld ?? fallbackEventsHeld,
+    volunteersImpacted:
+      organization.impactStats?.volunteersImpacted ??
+      fallbackVolunteersImpacted,
+    hoursContributed: organization.impactStats?.hoursContributed ?? null,
+    beneficiariesServed: organization.impactStats?.beneficiariesServed ?? null,
+  };
+
+  return {
+    organization: {
+      ...organization,
+      impactStats: mergedImpactStats,
+    },
+    events,
+  };
 }
 
 export async function fetchOrganizationDashboard(

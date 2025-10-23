@@ -8,27 +8,81 @@ import {
   CreditCard as Edit,
   Loader2,
   Camera,
+  Users,
+  CalendarCheck,
+  Clock,
+  Heart,
+  Target,
+  Eye,
+  BookOpen,
+  ImagePlus,
+  Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 import { fetchVolunteerStatistics, updateProfile } from "../lib/api";
-import type { VolunteerStatistics } from "../types";
+import type { Profile, VolunteerStatistics } from "../types";
 import {
   getImageConstraintsDescription,
   removeStorageFileByUrl,
+  uploadOrganizationGalleryImage,
   uploadUserAvatar,
   validateImageFile,
 } from "../lib/storage";
 
+type ProfileFormState = {
+  name: string;
+  phone: string;
+  location: string;
+  bio: string;
+  mission: string;
+  vision: string;
+  history: string;
+  statsEventsHeld: string;
+  statsVolunteersImpacted: string;
+  statsHoursContributed: string;
+  statsBeneficiariesServed: string;
+};
+
+type GalleryUpload = {
+  file: File;
+  previewUrl: string;
+};
+
+const MAX_GALLERY_IMAGES = 8;
+
+const formatStatInput = (value: number | null | undefined): string =>
+  typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+
+const buildFormStateFromProfile = (
+  profile: Profile | null
+): ProfileFormState => ({
+  name: profile?.name ?? "",
+  phone: profile?.phone ?? "",
+  location: profile?.location ?? "",
+  bio: profile?.bio ?? "",
+  mission: profile?.mission ?? "",
+  vision: profile?.vision ?? "",
+  history: profile?.history ?? "",
+  statsEventsHeld: formatStatInput(profile?.impactStats?.eventsHeld),
+  statsVolunteersImpacted: formatStatInput(
+    profile?.impactStats?.volunteersImpacted
+  ),
+  statsHoursContributed: formatStatInput(
+    profile?.impactStats?.hoursContributed
+  ),
+  statsBeneficiariesServed: formatStatInput(
+    profile?.impactStats?.beneficiariesServed
+  ),
+});
+
 export default function Profile() {
   const { user, refreshProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    name: user?.name || "",
-    phone: user?.phone || "",
-    location: user?.location || "",
-    bio: user?.bio || "",
-  });
+  const [formData, setFormData] = useState<ProfileFormState>(() =>
+    buildFormStateFromProfile(user)
+  );
   const [stats, setStats] = useState<VolunteerStatistics | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -39,6 +93,19 @@ export default function Profile() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarRemoved, setAvatarRemoved] = useState(false);
   const avatarObjectUrlRef = useRef<string | null>(null);
+  const [galleryItems, setGalleryItems] = useState<string[]>(
+    user?.galleryUrls ?? []
+  );
+  const [newGalleryItems, setNewGalleryItems] = useState<GalleryUpload[]>([]);
+  const [removedGalleryUrls, setRemovedGalleryUrls] = useState<string[]>([]);
+  const galleryObjectUrlsRef = useRef<string[]>([]);
+
+  const updateFormField = <K extends keyof ProfileFormState>(
+    key: K,
+    value: ProfileFormState[K]
+  ) => {
+    setFormData((previous) => ({ ...previous, [key]: value }));
+  };
   const imageConstraintsHint = getImageConstraintsDescription();
   const userId = user?.id ?? null;
   const userType = user?.type ?? null;
@@ -87,12 +154,8 @@ export default function Profile() {
   useEffect(() => {
     if (!user || isEditing) return;
 
-    setFormData({
-      name: user.name ?? "",
-      phone: user.phone ?? "",
-      location: user.location ?? "",
-      bio: user.bio ?? "",
-    });
+    setFormData(buildFormStateFromProfile(user));
+    setGalleryItems(user.galleryUrls ?? []);
   }, [user, isEditing]);
 
   useEffect(() => {
@@ -118,6 +181,13 @@ export default function Profile() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      galleryObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      galleryObjectUrlsRef.current = [];
+    };
+  }, []);
+
   const handleStartEdit = () => {
     if (avatarObjectUrlRef.current) {
       URL.revokeObjectURL(avatarObjectUrlRef.current);
@@ -126,6 +196,14 @@ export default function Profile() {
     setAvatarFile(null);
     setAvatarRemoved(false);
     setAvatarPreview(user?.avatarUrl ?? null);
+    if (user) {
+      setFormData(buildFormStateFromProfile(user));
+      setGalleryItems(user.galleryUrls ?? []);
+    }
+    setRemovedGalleryUrls([]);
+    galleryObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    galleryObjectUrlsRef.current = [];
+    setNewGalleryItems([]);
     setIsEditing(true);
   };
 
@@ -139,13 +217,13 @@ export default function Profile() {
     setAvatarPreview(user?.avatarUrl ?? null);
 
     if (user) {
-      setFormData({
-        name: user.name ?? "",
-        phone: user.phone ?? "",
-        location: user.location ?? "",
-        bio: user.bio ?? "",
-      });
+      setFormData(buildFormStateFromProfile(user));
+      setGalleryItems(user.galleryUrls ?? []);
     }
+    galleryObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    galleryObjectUrlsRef.current = [];
+    setNewGalleryItems([]);
+    setRemovedGalleryUrls([]);
     setIsEditing(false);
   };
 
@@ -193,6 +271,68 @@ export default function Profile() {
     setAvatarPreview(user?.avatarUrl ?? null);
   };
 
+  const handleGalleryFilesChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    const availableSlots =
+      MAX_GALLERY_IMAGES - (galleryItems.length + newGalleryItems.length);
+
+    if (availableSlots <= 0) {
+      toast.error(`A galeria já tem ${MAX_GALLERY_IMAGES} imagens.`);
+      event.target.value = "";
+      return;
+    }
+
+    const uploads: GalleryUpload[] = [];
+    let slotsRemaining = availableSlots;
+
+    for (const file of files) {
+      if (slotsRemaining <= 0) {
+        toast.error(
+          `Limite de ${MAX_GALLERY_IMAGES} imagens atingido. Remova uma imagem antes de adicionar novas.`
+        );
+        break;
+      }
+
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        continue;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      galleryObjectUrlsRef.current.push(previewUrl);
+      uploads.push({ file, previewUrl });
+      slotsRemaining -= 1;
+    }
+
+    if (uploads.length > 0) {
+      setNewGalleryItems((previous) => [...previous, ...uploads]);
+    }
+
+    event.target.value = "";
+  };
+
+  const handleRemoveExistingGalleryImage = (url: string) => {
+    setGalleryItems((previous) => previous.filter((item) => item !== url));
+    if (user?.galleryUrls?.includes(url)) {
+      setRemovedGalleryUrls((previous) =>
+        previous.includes(url) ? previous : [...previous, url]
+      );
+    }
+  };
+
+  const handleRemoveNewGalleryItem = (previewUrl: string) => {
+    setNewGalleryItems((previous) =>
+      previous.filter((item) => item.previewUrl !== previewUrl)
+    );
+    galleryObjectUrlsRef.current = galleryObjectUrlsRef.current.filter(
+      (url) => url !== previewUrl
+    );
+    URL.revokeObjectURL(previewUrl);
+  };
+
   const handleSave = async () => {
     if (!userId) {
       toast.error("A sessão expirou. Inicie sessão novamente.");
@@ -212,10 +352,62 @@ export default function Profile() {
       return;
     }
 
+    const trimmedMission = formData.mission.trim();
+    const trimmedVision = formData.vision.trim();
+    const trimmedHistory = formData.history.trim();
+
+    let parsedEventsHeld: number | null = null;
+    let parsedVolunteersImpacted: number | null = null;
+    let parsedHoursContributed: number | null = null;
+    let parsedBeneficiariesServed: number | null = null;
+
+    const parseStatInput = (value: string, label: string): number | null => {
+      const normalized = value.trim();
+      if (!normalized) return null;
+      const parsed = Number(normalized.replace(",", "."));
+      if (!Number.isFinite(parsed)) {
+        throw new Error(`Introduza um valor numérico válido para ${label}.`);
+      }
+      const rounded = Math.round(parsed);
+      if (rounded < 0) {
+        throw new Error(`${label} não pode ser negativo.`);
+      }
+      return rounded;
+    };
+
+    if (isOrganization) {
+      try {
+        parsedEventsHeld = parseStatInput(
+          formData.statsEventsHeld,
+          "eventos realizados"
+        );
+        parsedVolunteersImpacted = parseStatInput(
+          formData.statsVolunteersImpacted,
+          "voluntários impactados"
+        );
+        parsedHoursContributed = parseStatInput(
+          formData.statsHoursContributed,
+          "horas de voluntariado"
+        );
+        parsedBeneficiariesServed = parseStatInput(
+          formData.statsBeneficiariesServed,
+          "beneficiários apoiados"
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Valor numérico inválido nas estatísticas.";
+        toast.error(message);
+        return;
+      }
+    }
+
     setSaving(true);
 
     const previousAvatarUrl = user?.avatarUrl ?? null;
     let uploadedAvatarUrl: string | null = null;
+    const uploadedGalleryUrls: string[] = [];
 
     try {
       let avatarUrlToPersist = previousAvatarUrl;
@@ -229,6 +421,16 @@ export default function Profile() {
         avatarUrlToPersist = uploadedAvatarUrl;
       }
 
+      if (isOrganization && newGalleryItems.length > 0) {
+        for (const item of newGalleryItems) {
+          const uploadedUrl = await uploadOrganizationGalleryImage({
+            organizationId: userId,
+            file: item.file,
+          });
+          uploadedGalleryUrls.push(uploadedUrl);
+        }
+      }
+
       const updated = await updateProfile({
         id: userId,
         name: trimmedName,
@@ -237,14 +439,28 @@ export default function Profile() {
         location: formData.location.trim() ? formData.location.trim() : null,
         bio: formData.bio.trim() ? formData.bio.trim() : null,
         avatarUrl: avatarUrlToPersist,
+        ...(isOrganization
+          ? {
+              mission: trimmedMission || null,
+              vision: trimmedVision || null,
+              history: trimmedHistory || null,
+              galleryUrls: [...galleryItems, ...uploadedGalleryUrls],
+              impactStats: {
+                eventsHeld: parsedEventsHeld,
+                volunteersImpacted: parsedVolunteersImpacted,
+                hoursContributed: parsedHoursContributed,
+                beneficiariesServed: parsedBeneficiariesServed,
+              },
+            }
+          : {}),
       });
 
-      setFormData({
-        name: updated.name ?? "",
-        phone: updated.phone ?? "",
-        location: updated.location ?? "",
-        bio: updated.bio ?? "",
-      });
+      setFormData(buildFormStateFromProfile(updated));
+      setGalleryItems(updated.galleryUrls ?? []);
+      setNewGalleryItems([]);
+      setRemovedGalleryUrls([]);
+      galleryObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      galleryObjectUrlsRef.current = [];
 
       if (avatarObjectUrlRef.current) {
         URL.revokeObjectURL(avatarObjectUrlRef.current);
@@ -268,10 +484,29 @@ export default function Profile() {
           console.warn("Falha ao remover avatar antigo", error);
         });
       }
+
+      if (removedGalleryUrls.length > 0) {
+        removedGalleryUrls.forEach((url) => {
+          void removeStorageFileByUrl(url).catch((error) => {
+            console.warn("Falha ao remover imagem da galeria", error);
+          });
+        });
+      }
     } catch (error) {
       if (uploadedAvatarUrl) {
         void removeStorageFileByUrl(uploadedAvatarUrl).catch((cleanupError) => {
           console.warn("Falha ao remover avatar recém-carregado", cleanupError);
+        });
+      }
+
+      if (uploadedGalleryUrls.length > 0) {
+        uploadedGalleryUrls.forEach((url) => {
+          void removeStorageFileByUrl(url).catch((cleanupError) => {
+            console.warn(
+              "Falha ao remover imagem recém-carregada da galeria",
+              cleanupError
+            );
+          });
         });
       }
 
@@ -287,6 +522,7 @@ export default function Profile() {
   };
 
   const isVolunteer = userType === "volunteer";
+  const isOrganization = userType === "organization";
   const baseStats: VolunteerStatistics = stats ?? {
     totalVolunteerHours: 0,
     eventsAttended: 0,
@@ -339,6 +575,40 @@ export default function Profile() {
       valueClass: "text-indigo-600",
     },
   ];
+
+  const organizationStatConfig = [
+    {
+      label: "Eventos realizados",
+      icon: CalendarCheck,
+      formKey: "statsEventsHeld" as const,
+      statKey: "eventsHeld" as const,
+    },
+    {
+      label: "Voluntários impactados",
+      icon: Users,
+      formKey: "statsVolunteersImpacted" as const,
+      statKey: "volunteersImpacted" as const,
+    },
+    {
+      label: "Horas de voluntariado",
+      icon: Clock,
+      formKey: "statsHoursContributed" as const,
+      statKey: "hoursContributed" as const,
+    },
+    {
+      label: "Beneficiários apoiados",
+      icon: Heart,
+      formKey: "statsBeneficiariesServed" as const,
+      statKey: "beneficiariesServed" as const,
+    },
+  ];
+
+  const organizationImpact = user?.impactStats ?? null;
+
+  const formatStatDisplay = (value: number | null | undefined) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? value.toLocaleString("pt-PT")
+      : "—";
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -454,8 +724,8 @@ export default function Profile() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
+                    onChange={(event) =>
+                      updateFormField("name", event.target.value)
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
@@ -491,8 +761,8 @@ export default function Profile() {
                   <input
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
+                    onChange={(event) =>
+                      updateFormField("phone", event.target.value)
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
@@ -512,8 +782,8 @@ export default function Profile() {
                   <input
                     type="text"
                     value={formData.location}
-                    onChange={(e) =>
-                      setFormData({ ...formData, location: e.target.value })
+                    onChange={(event) =>
+                      updateFormField("location", event.target.value)
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
@@ -532,8 +802,8 @@ export default function Profile() {
                 {isEditing ? (
                   <textarea
                     value={formData.bio}
-                    onChange={(e) =>
-                      setFormData({ ...formData, bio: e.target.value })
+                    onChange={(event) =>
+                      updateFormField("bio", event.target.value)
                     }
                     rows={4}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
@@ -544,71 +814,324 @@ export default function Profile() {
                   </p>
                 )}
               </div>
+
+              {isOrganization && (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="md:col-span-1">
+                    {isEditing ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Missão
+                        </label>
+                        <textarea
+                          value={formData.mission}
+                          onChange={(event) =>
+                            updateFormField("mission", event.target.value)
+                          }
+                          rows={4}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+                        <div className="flex items-center gap-2 text-emerald-700 font-semibold">
+                          <Target className="h-4 w-4" />
+                          <span>Missão</span>
+                        </div>
+                        <p className="mt-2 text-gray-900 whitespace-pre-line">
+                          {formData.mission ||
+                            "Partilhe a missão da sua organização."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="md:col-span-1">
+                    {isEditing ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Visão
+                        </label>
+                        <textarea
+                          value={formData.vision}
+                          onChange={(event) =>
+                            updateFormField("vision", event.target.value)
+                          }
+                          rows={4}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+                        <div className="flex items-center gap-2 text-emerald-700 font-semibold">
+                          <Eye className="h-4 w-4" />
+                          <span>Visão</span>
+                        </div>
+                        <p className="mt-2 text-gray-900 whitespace-pre-line">
+                          {formData.vision ||
+                            "Descreva a visão para o impacto futuro."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    {isEditing ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          História
+                        </label>
+                        <textarea
+                          value={formData.history}
+                          onChange={(event) =>
+                            updateFormField("history", event.target.value)
+                          }
+                          rows={6}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                      </>
+                    ) : (
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+                        <div className="flex items-center gap-2 text-emerald-700 font-semibold">
+                          <BookOpen className="h-4 w-4" />
+                          <span>História</span>
+                        </div>
+                        <p className="mt-2 text-gray-900 whitespace-pre-line">
+                          {formData.history ||
+                            "Conte a história e conquistas da organização."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="mt-8 bg-white rounded-lg shadow-md p-8">
-          <div className="flex items-center space-x-2 mb-6">
-            <Award className="h-6 w-6 text-emerald-600" />
-            <h2 className="text-2xl font-bold text-gray-900">Estatísticas</h2>
-          </div>
+        <div className="mt-8 space-y-8">
+          <div className="bg-white rounded-lg shadow-md p-8">
+            <div className="flex items-center space-x-2 mb-6">
+              <Award className="h-6 w-6 text-emerald-600" />
+              <h2 className="text-2xl font-bold text-gray-900">Estatísticas</h2>
+            </div>
 
-          {isVolunteer ? (
-            statsLoading ? (
+            {isVolunteer ? (
+              statsLoading ? (
+                <div className="space-y-6">
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                  </div>
+                  <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="h-24 rounded-lg bg-gray-100 animate-pulse"
+                      ></div>
+                    ))}
+                  </div>
+                </div>
+              ) : statsError ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-center text-rose-700">
+                  {statsError}
+                </div>
+              ) : (
+                <>
+                  <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    {statCards.map((card) => (
+                      <div
+                        key={card.label}
+                        className={`text-center p-4 rounded-lg ${card.bgClass}`}
+                      >
+                        <div
+                          className={`text-3xl font-bold ${card.valueClass} mb-2`}
+                        >
+                          {card.value}
+                        </div>
+                        <div className="text-gray-600">{card.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {baseStats.totalApplications > 0 ? (
+                    <p className="mt-6 text-sm text-gray-500 text-center md:text-left">
+                      Baseado em{` `}
+                      <span className="font-semibold text-gray-700">
+                        {formatInteger(baseStats.totalApplications)}
+                      </span>{" "}
+                      candidaturas.
+                    </p>
+                  ) : (
+                    <p className="mt-6 text-sm text-gray-500 text-center md:text-left">
+                      Ainda não submeteu candidaturas. Candidate-se a eventos
+                      para gerar estatísticas.
+                    </p>
+                  )}
+                </>
+              )
+            ) : isOrganization ? (
               <div className="space-y-6">
-                <div className="flex justify-center py-6">
-                  <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-                </div>
-                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div
-                      key={index}
-                      className="h-24 rounded-lg bg-gray-100 animate-pulse"
-                    ></div>
-                  ))}
-                </div>
-              </div>
-            ) : statsError ? (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-center text-rose-700">
-                {statsError}
+                {isEditing ? (
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {organizationStatConfig.map((stat) => {
+                      const Icon = stat.icon;
+                      const statValue = formData[stat.formKey];
+                      return (
+                        <div key={stat.label} className="flex flex-col gap-2">
+                          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <Icon className="h-4 w-4 text-emerald-600" />
+                            {stat.label}
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={statValue}
+                            onChange={(event) =>
+                              updateFormField(stat.formKey, event.target.value)
+                            }
+                            placeholder="0"
+                            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+                    {organizationStatConfig.map((stat) => {
+                      const Icon = stat.icon;
+                      const value = organizationImpact?.[stat.statKey];
+                      return (
+                        <div
+                          key={stat.label}
+                          className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-4"
+                        >
+                          <div className="rounded-full bg-white p-3 shadow-sm">
+                            <Icon className="h-5 w-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-emerald-700">
+                              {stat.label}
+                            </p>
+                            <p className="text-2xl font-bold text-gray-900">
+                              {formatStatDisplay(value)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-sm text-gray-500">
+                  Estes indicadores ficam visíveis no perfil público da
+                  organização.
+                </p>
               </div>
             ) : (
-              <>
-                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-                  {statCards.map((card) => (
-                    <div
-                      key={card.label}
-                      className={`text-center p-4 rounded-lg ${card.bgClass}`}
-                    >
-                      <div
-                        className={`text-3xl font-bold ${card.valueClass} mb-2`}
-                      >
-                        {card.value}
+              <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-gray-600">
+                Estatísticas dinâmicas disponíveis apenas para voluntários.
+              </div>
+            )}
+          </div>
+
+          {isOrganization && (
+            <div className="bg-white rounded-lg shadow-md p-8">
+              <div className="flex items-center space-x-2 mb-6">
+                <ImagePlus className="h-6 w-6 text-emerald-600" />
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Galeria da Organização
+                </h2>
+              </div>
+
+              {isEditing && (
+                <div className="mb-6 rounded-lg border border-dashed border-emerald-200 bg-emerald-50 p-4">
+                  <label className="flex flex-col gap-3 cursor-pointer sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-full bg-white p-3 shadow-sm">
+                        <ImagePlus className="h-5 w-5 text-emerald-600" />
                       </div>
-                      <div className="text-gray-600">{card.label}</div>
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-700">
+                          Adicionar imagens à galeria
+                        </p>
+                        <p className="text-xs text-emerald-600">
+                          Até {MAX_GALLERY_IMAGES} imagens · JPG, PNG, WEBP
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-600 shadow-sm">
+                      Selecionar imagens
+                    </span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={handleGalleryFilesChange}
+                    />
+                  </label>
+                  <p className="mt-2 text-xs text-gray-500">
+                    {galleryItems.length + newGalleryItems.length} /{" "}
+                    {MAX_GALLERY_IMAGES} imagens na galeria.
+                  </p>
+                </div>
+              )}
+
+              {galleryItems.length === 0 && newGalleryItems.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-gray-600">
+                  {isEditing
+                    ? "Ainda não adicionou imagens. Utilize o botão acima para carregar as primeiras fotos."
+                    : "A organização ainda não partilhou imagens na galeria."}
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  {galleryItems.map((url) => (
+                    <div
+                      key={url}
+                      className="relative overflow-hidden rounded-lg shadow-sm"
+                    >
+                      <img
+                        src={url}
+                        alt="Imagem da galeria"
+                        className="h-48 w-full object-cover"
+                      />
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExistingGalleryImage(url)}
+                          className="absolute top-3 right-3 rounded-full bg-white/90 p-1.5 text-rose-600 shadow-md transition hover:bg-white"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   ))}
+                  {isEditing &&
+                    newGalleryItems.map((item) => (
+                      <div
+                        key={item.previewUrl}
+                        className="relative overflow-hidden rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50"
+                      >
+                        <img
+                          src={item.previewUrl}
+                          alt="Nova imagem da galeria"
+                          className="h-48 w-full object-cover opacity-90"
+                        />
+                        <span className="absolute top-3 left-3 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                          Novo
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRemoveNewGalleryItem(item.previewUrl)
+                          }
+                          className="absolute top-3 right-3 rounded-full bg-white/90 p-1.5 text-rose-600 shadow-md transition hover:bg-white"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
                 </div>
-                {baseStats.totalApplications > 0 ? (
-                  <p className="mt-6 text-sm text-gray-500 text-center md:text-left">
-                    Baseado em{` `}
-                    <span className="font-semibold text-gray-700">
-                      {formatInteger(baseStats.totalApplications)}
-                    </span>{" "}
-                    candidaturas.
-                  </p>
-                ) : (
-                  <p className="mt-6 text-sm text-gray-500 text-center md:text-left">
-                    Ainda não submeteu candidaturas. Candidate-se a eventos para
-                    gerar estatísticas.
-                  </p>
-                )}
-              </>
-            )
-          ) : (
-            <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-gray-600">
-              Estatísticas dinâmicas disponíveis apenas para voluntários.
+              )}
             </div>
           )}
         </div>
