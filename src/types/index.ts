@@ -50,6 +50,8 @@ export interface Event {
   volunteersNeeded: number;
   volunteersRegistered: number;
   status: "open" | "closed" | "completed";
+  postEventSummary?: string | null;
+  postEventGalleryUrls?: string[];
   imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;

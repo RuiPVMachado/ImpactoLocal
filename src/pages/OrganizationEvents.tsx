@@ -123,6 +123,13 @@ export default function OrganizationEvents() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => (
               <div key={event.id} className="relative">
+                {event.status === "completed" &&
+                  (event.postEventSummary ?? "").trim().length === 0 &&
+                  (event.postEventGalleryUrls?.length ?? 0) === 0 && (
+                    <span className="absolute left-4 top-4 z-10 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 shadow">
+                      Partilhe o relato
+                    </span>
+                  )}
                 <EventCard event={event} showApplyButton={false} />
                 <div className="absolute top-4 right-4 flex space-x-2">
                   <button

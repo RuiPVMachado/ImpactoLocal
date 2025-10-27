@@ -16,6 +16,8 @@ import { createEvent } from "../lib/api";
 import {
   getNowLocalDateTimeInputValue,
   MIN_EVENT_START_LEEWAY_MS,
+  formatDurationFromParts,
+  normalizeDurationParts,
 } from "../lib/datetime";
 import {
   getImageConstraintsDescription,
@@ -30,7 +32,8 @@ type FormState = {
   category: string;
   address: string;
   date: string;
-  duration: string;
+  durationHours: string;
+  durationMinutes: string;
   volunteersNeeded: string;
 };
 
@@ -43,7 +46,8 @@ export default function CreateEvent() {
     category: "Ambiente",
     address: "",
     date: "",
-    duration: "",
+    durationHours: "",
+    durationMinutes: "",
     volunteersNeeded: "",
   });
   const [minDateTime] = useState<string>(() => getNowLocalDateTimeInputValue());
@@ -114,6 +118,79 @@ export default function CreateEvent() {
     setImagePreview(null);
   };
 
+  const handleDurationHoursChange = (value: string) => {
+    if (value === "") {
+      setFormData((previous) => ({
+        ...previous,
+        durationHours: "",
+      }));
+      return;
+    }
+
+    const numeric = Number.parseInt(value, 10);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return;
+    }
+
+    const safeValue = Math.min(numeric, 999);
+    setFormData((previous) => ({
+      ...previous,
+      durationHours: String(safeValue),
+    }));
+  };
+
+  const handleDurationMinutesChange = (value: string) => {
+    if (value === "") {
+      setFormData((previous) => ({
+        ...previous,
+        durationMinutes: "",
+      }));
+      return;
+    }
+
+    const numeric = Number.parseInt(value, 10);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return;
+    }
+
+    setFormData((previous) => {
+      const currentHours = Number.parseInt(previous.durationHours, 10);
+      const hoursInput = Number.isFinite(currentHours) ? currentHours : 0;
+      const { hours, minutes } = normalizeDurationParts(hoursInput, numeric);
+
+      return {
+        ...previous,
+        durationHours: String(hours),
+        durationMinutes: String(minutes),
+      };
+    });
+  };
+
+  const parsedDurationHours = Number.parseInt(formData.durationHours, 10);
+  const parsedDurationMinutes = Number.parseInt(formData.durationMinutes, 10);
+
+  const previewHoursInput = Number.isFinite(parsedDurationHours)
+    ? parsedDurationHours
+    : 0;
+  const previewMinutesInput = Number.isFinite(parsedDurationMinutes)
+    ? parsedDurationMinutes
+    : 0;
+
+  const previewNormalized = normalizeDurationParts(
+    previewHoursInput,
+    previewMinutesInput
+  );
+  const previewTotalMinutes =
+    previewNormalized.hours * 60 + previewNormalized.minutes;
+
+  const durationPreviewText =
+    previewTotalMinutes > 0
+      ? `${formatDurationFromParts(
+          previewNormalized.hours,
+          previewNormalized.minutes
+        )} (${previewTotalMinutes} minutos)`
+      : null;
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -159,6 +236,27 @@ export default function CreateEvent() {
 
     const isoDate = selectedDate.toISOString();
 
+    const parsedHours = Number.parseInt(formData.durationHours, 10);
+    const parsedMinutes = Number.parseInt(formData.durationMinutes, 10);
+
+    const hoursInput = Number.isFinite(parsedHours) ? parsedHours : 0;
+    const minutesInput = Number.isFinite(parsedMinutes) ? parsedMinutes : 0;
+
+    const { hours: normalizedHours, minutes: normalizedMinutes } =
+      normalizeDurationParts(hoursInput, minutesInput);
+
+    const totalDurationMinutes = normalizedHours * 60 + normalizedMinutes;
+
+    if (totalDurationMinutes <= 0) {
+      toast.error("Indique a duração do evento em horas ou minutos.");
+      return;
+    }
+
+    const durationLabel = formatDurationFromParts(
+      normalizedHours,
+      normalizedMinutes
+    );
+
     setSubmitting(true);
     let uploadedImageUrl: string | null = null;
     try {
@@ -176,7 +274,7 @@ export default function CreateEvent() {
         category: formData.category,
         address: formData.address.trim(),
         date: isoDate,
-        duration: formData.duration.trim(),
+        duration: durationLabel,
         volunteersNeeded,
         ...(uploadedImageUrl ? { imageUrl: uploadedImageUrl } : {}),
       });
@@ -327,19 +425,57 @@ export default function CreateEvent() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Duração
                 </label>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={formData.duration}
-                    onChange={(event) =>
-                      handleChange("duration", event.target.value)
-                    }
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                    placeholder="Ex: 3 horas"
-                    required
-                  />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <span className="mb-1 block text-sm font-medium text-gray-600">
+                      Horas
+                    </span>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        value={formData.durationHours}
+                        onChange={(event) =>
+                          handleDurationHoursChange(event.target.value)
+                        }
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="mb-1 block text-sm font-medium text-gray-600">
+                      Minutos
+                    </span>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        value={formData.durationMinutes}
+                        onChange={(event) =>
+                          handleDurationMinutesChange(event.target.value)
+                        }
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
                 </div>
+                <p className="mt-2 text-sm text-gray-500">
+                  Use 0 quando não se aplica. Ex.: 1 hora e 30 minutos → horas =
+                  1, minutos = 30. Para eventos curtos pode indicar só minutos.
+                </p>
+                {durationPreviewText && (
+                  <p className="mt-2 text-sm font-semibold text-emerald-700">
+                    Duração definida: {durationPreviewText}
+                  </p>
+                )}
               </div>
             </div>
 

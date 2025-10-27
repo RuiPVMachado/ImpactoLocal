@@ -1,4 +1,5 @@
 import { Calendar, MapPin, Users, Clock, ArrowRight } from "lucide-react";
+import { getEventEndDate } from "../lib/datetime";
 import { formatDurationWithHours } from "../lib/formatters";
 import { Event } from "../types";
 
@@ -13,6 +14,42 @@ export default function EventCard({
   onClick,
   showApplyButton = true,
 }: EventCardProps) {
+  const startDate = new Date(event.date);
+  const hasValidStart = !Number.isNaN(startDate.getTime());
+
+  const formattedDate = hasValidStart
+    ? startDate.toLocaleDateString("pt-PT", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "Data por confirmar";
+
+  const formattedStartTime = hasValidStart
+    ? startDate.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  const endDate = hasValidStart
+    ? getEventEndDate(startDate, event.duration)
+    : null;
+  const formattedEndTime = endDate
+    ? endDate.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  const timeDisplay = formattedStartTime
+    ? formattedEndTime
+      ? `Horário: ${formattedStartTime} - ${formattedEndTime}`
+      : `Horário: ${formattedStartTime}`
+    : "Horário por confirmar";
+
+  const durationLabel = formatDurationWithHours(event.duration);
+
   return (
     <div
       className="group relative bg-white rounded-2xl shadow-soft overflow-hidden border border-brand-secondary/10 transition-all duration-200 ease-out cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:border-brand-secondary/20 focus-within:-translate-y-1 focus-within:shadow-lg focus-within:border-brand-secondary/20"
@@ -72,12 +109,19 @@ export default function EventCard({
 
           <div className="flex items-center text-sm text-brand-neutral">
             <Calendar className="h-4 w-4 mr-2 text-brand-secondary" />
-            <span>{new Date(event.date).toLocaleDateString("pt-PT")}</span>
+            <span>{formattedDate}</span>
           </div>
 
-          <div className="flex items-center text-sm text-brand-neutral">
-            <Clock className="h-4 w-4 mr-2 text-brand-secondary" />
-            <span>{formatDurationWithHours(event.duration)}</span>
+          <div className="flex items-start text-sm text-brand-neutral">
+            <Clock className="h-4 w-4 mr-2 mt-0.5 text-brand-secondary" />
+            <div>
+              <span className="block">{timeDisplay}</span>
+              {durationLabel && (
+                <span className="block text-xs text-brand-neutral/80">
+                  Duração: {durationLabel}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

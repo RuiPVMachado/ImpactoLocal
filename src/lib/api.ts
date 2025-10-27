@@ -37,6 +37,8 @@ type CreateEventPayload = {
   duration: string;
   volunteersNeeded: number;
   imageUrl?: string | null;
+  postEventSummary?: string | null;
+  postEventGalleryUrls?: string[] | null;
 };
 
 type UpdateEventPayload = Partial<
@@ -150,6 +152,8 @@ type EventRow = {
   duration: string;
   volunteers_needed: number | null;
   volunteers_registered: number | null;
+  post_event_summary: string | null;
+  post_event_gallery_urls: string[] | null;
   status: "open" | "closed" | "completed";
   image_url: string | null;
   created_at: string;
@@ -266,6 +270,19 @@ function isPermissionDeniedError(error: unknown): boolean {
   return false;
 }
 
+const parseStatNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
 const toProfile = (row: ProfileRow): Profile => {
   const galleryUrls = Array.isArray(row.gallery_urls)
     ? row.gallery_urls
@@ -274,19 +291,24 @@ const toProfile = (row: ProfileRow): Profile => {
         .filter((url) => url.length > 0)
     : [];
 
+  const eventsHeld = parseStatNumber(row.stats_events_held);
+  const volunteersImpacted = parseStatNumber(row.stats_volunteers_impacted);
+  const hoursContributed = parseStatNumber(row.stats_hours_contributed);
+  const beneficiariesServed = parseStatNumber(row.stats_beneficiaries_served);
+
   const hasImpactStats = [
-    row.stats_events_held,
-    row.stats_volunteers_impacted,
-    row.stats_hours_contributed,
-    row.stats_beneficiaries_served,
-  ].some((value) => value !== undefined && value !== null);
+    eventsHeld,
+    volunteersImpacted,
+    hoursContributed,
+    beneficiariesServed,
+  ].some((value) => value !== null);
 
   const impactStats = hasImpactStats
     ? {
-        eventsHeld: row.stats_events_held ?? null,
-        volunteersImpacted: row.stats_volunteers_impacted ?? null,
-        hoursContributed: row.stats_hours_contributed ?? null,
-        beneficiariesServed: row.stats_beneficiaries_served ?? null,
+        eventsHeld,
+        volunteersImpacted,
+        hoursContributed,
+        beneficiariesServed,
       }
     : null;
 
@@ -339,6 +361,8 @@ const toEvent = (row: EventRow): Event => ({
   volunteersNeeded: row.volunteers_needed ?? 0,
   volunteersRegistered: row.volunteers_registered ?? 0,
   status: row.status,
+  postEventSummary: row.post_event_summary ?? null,
+  postEventGalleryUrls: row.post_event_gallery_urls ?? [],
   imageUrl: row.image_url ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -1380,6 +1404,8 @@ export async function createEvent(payload: CreateEventPayload): Promise<Event> {
       duration: payload.duration,
       volunteers_needed: payload.volunteersNeeded,
       image_url: payload.imageUrl ?? null,
+      post_event_summary: payload.postEventSummary ?? null,
+      post_event_gallery_urls: payload.postEventGalleryUrls ?? [],
       status: "open",
     })
     .select(
@@ -1469,6 +1495,13 @@ export async function updateEvent(
   if (payload.imageUrl !== undefined)
     updatePayload.image_url = payload.imageUrl;
   if (payload.status !== undefined) updatePayload.status = payload.status;
+  if (payload.postEventSummary !== undefined) {
+    updatePayload.post_event_summary =
+      payload.postEventSummary === null ? null : payload.postEventSummary;
+  }
+  if (payload.postEventGalleryUrls !== undefined) {
+    updatePayload.post_event_gallery_urls = payload.postEventGalleryUrls;
+  }
 
   const { data, error } = await supabase
     .from("events")

@@ -20,6 +20,7 @@ import {
   fetchEventById,
 } from "../lib/api";
 import { formatDurationWithHours } from "../lib/formatters";
+import { getEventEndDate } from "../lib/datetime";
 import {
   getAttachmentConstraintsDescription,
   removeApplicationAttachment,
@@ -104,6 +105,58 @@ export default function EventDetails() {
 
     verifyApplication();
   }, [event, user]);
+
+  const timingInfo = useMemo(() => {
+    if (!event) {
+      return {
+        formattedDate: "Data por confirmar",
+        formattedStartTime: null as string | null,
+        formattedEndTime: null as string | null,
+        timeRangeLabel: null as string | null,
+      };
+    }
+
+    const startDate = new Date(event.date);
+    if (Number.isNaN(startDate.getTime())) {
+      return {
+        formattedDate: "Data por confirmar",
+        formattedStartTime: null,
+        formattedEndTime: null,
+        timeRangeLabel: null,
+      };
+    }
+
+    const formattedDate = startDate.toLocaleDateString("pt-PT", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const formattedStartTime = startDate.toLocaleTimeString("pt-PT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const endDate = getEventEndDate(startDate, event.duration);
+    const formattedEndTime = endDate
+      ? endDate.toLocaleTimeString("pt-PT", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+
+    const timeRangeLabel = formattedEndTime
+      ? `Das ${formattedStartTime} às ${formattedEndTime}`
+      : `Às ${formattedStartTime}`;
+
+    return {
+      formattedDate,
+      formattedStartTime,
+      formattedEndTime,
+      timeRangeLabel,
+    };
+  }, [event]);
 
   const handleApply = async () => {
     if (!event) return;
@@ -436,14 +489,10 @@ export default function EventDetails() {
               <div className="flex items-center space-x-3 text-gray-700">
                 <Calendar className="h-5 w-5 text-emerald-600" />
                 <div>
-                  <p className="text-sm text-gray-500">Data</p>
-                  <p className="font-semibold">
-                    {new Date(event.date).toLocaleDateString("pt-PT", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
+                  <p className="text-sm text-gray-500">Data e horário</p>
+                  <p className="font-semibold">{timingInfo.formattedDate}</p>
+                  <p className="text-sm text-gray-500">
+                    {timingInfo.timeRangeLabel ?? "Horário por confirmar"}
                   </p>
                 </div>
               </div>

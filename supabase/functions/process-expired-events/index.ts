@@ -11,6 +11,11 @@ type EventRow = {
   date: string | null;
   duration: string | null;
   status: EventStatus;
+  organization_id: string;
+  volunteers_registered: number | null;
+  title: string | null;
+  post_event_summary: string | null;
+  post_event_gallery_urls: string[] | null;
 };
 
 type RequestPayload = {
@@ -61,7 +66,11 @@ function parseDurationToMinutes(value: string | null | undefined): number {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return 0;
 
-  const colonMatch = trimmed.match(/^(\d{1,2})[:h](\d{1,2})$/);
+  const sanitized = trimmed.replace(/,/g, ".");
+
+  const colonMatch = sanitized.match(
+    /^(\d{1,3})(?:\s*(?::|h)\s*(\d{1,2}))\s*(?:m(?:in(?:s|utos?)?)?)?$/
+  );
   if (colonMatch) {
     const hours = Number.parseInt(colonMatch[1], 10);
     const minutes = Number.parseInt(colonMatch[2], 10);
@@ -70,28 +79,33 @@ function parseDurationToMinutes(value: string | null | undefined): number {
     }
   }
 
+  const normalized = sanitized
+    .replace(/(\d)([a-z])/gi, "$1 $2")
+    .replace(/([a-z])(\d)/gi, "$1 $2");
+
+  const unitMatches = normalized.matchAll(
+    /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hora|horas|hour|hours|m|min|mins|minute|minutes|minuto|minutos)/g
+  );
+
   let totalMinutes = 0;
+  for (const match of unitMatches) {
+    const [, numericValueString, unit] = match;
+    const numericValue = Number.parseFloat(numericValueString);
+    if (!Number.isFinite(numericValue)) continue;
 
-  const hourMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*h/);
-  if (hourMatch) {
-    const hours = Number.parseFloat(hourMatch[1].replace(",", "."));
-    if (Number.isFinite(hours)) {
-      totalMinutes += Math.max(0, hours * 60);
+    if (/^h|^hr|^hora|^hour/.test(unit)) {
+      totalMinutes += numericValue * 60;
+    } else {
+      totalMinutes += numericValue;
     }
   }
 
-  const minuteMatch = trimmed.match(/(\d+(?:[.,]\d+)?)\s*m/);
-  if (minuteMatch) {
-    const minutes = Number.parseFloat(minuteMatch[1].replace(",", "."));
-    if (Number.isFinite(minutes)) {
-      totalMinutes += Math.max(0, minutes);
-    }
+  if (totalMinutes > 0) {
+    return Math.max(0, Math.round(totalMinutes));
   }
 
-  if (totalMinutes > 0) return totalMinutes;
-
-  const numeric = Number.parseFloat(trimmed.replace(",", "."));
-  return Number.isFinite(numeric) ? Math.max(0, numeric * 60) : 0;
+  const numeric = Number.parseFloat(sanitized);
+  return Number.isFinite(numeric) ? Math.max(0, Math.round(numeric * 60)) : 0;
 }
 
 function hasEventEnded(event: EventRow, referenceDate: Date): boolean {
@@ -161,7 +175,7 @@ serve(async (req: Request): Promise<Response> => {
     }
   }
 
-  const dryRun = Boolean(payload?.dryRun);
+  const dryRun = payload.dryRun ?? false;
 
   const client = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
@@ -175,7 +189,9 @@ serve(async (req: Request): Promise<Response> => {
 
   const { data, error } = await client
     .from("events")
-    .select("id, date, duration, status")
+    .select(
+      "id, date, duration, status, organization_id, volunteers_registered, title, post_event_summary, post_event_gallery_urls"
+    )
     .in("status", ["open", "closed"])
     .lte("date", nowIso);
 
@@ -191,11 +207,13 @@ serve(async (req: Request): Promise<Response> => {
   const candidateEvents = (data ?? []) as EventRow[];
 
   const completedEventIds: string[] = [];
+  const completedEventRows: EventRow[] = [];
   const skippedEventIds: string[] = [];
 
   for (const event of candidateEvents) {
     if (hasEventEnded(event, now)) {
       completedEventIds.push(event.id);
+      completedEventRows.push(event);
     } else {
       skippedEventIds.push(event.id);
     }
@@ -247,6 +265,118 @@ serve(async (req: Request): Promise<Response> => {
       { success: false, error: "Falha ao atualizar eventos." },
       origin
     );
+  }
+
+  const statsByOrganization = new Map<
+    string,
+    {
+      eventsCompleted: number;
+      volunteersImpacted: number;
+      volunteerMinutes: number;
+      events: { id: string; title: string | null }[];
+    }
+  >();
+
+  for (const event of completedEventRows) {
+    const aggregate = statsByOrganization.get(event.organization_id) ?? {
+      eventsCompleted: 0,
+      volunteersImpacted: 0,
+      volunteerMinutes: 0,
+      events: [],
+    };
+
+    aggregate.eventsCompleted += 1;
+    aggregate.volunteersImpacted += Math.max(
+      0,
+      event.volunteers_registered ?? 0
+    );
+
+    const durationMinutes = parseDurationToMinutes(event.duration);
+    if (durationMinutes > 0) {
+      aggregate.volunteerMinutes +=
+        durationMinutes * Math.max(0, event.volunteers_registered ?? 0);
+    }
+
+    aggregate.events.push({ id: event.id, title: event.title });
+    statsByOrganization.set(event.organization_id, aggregate);
+  }
+
+  for (const [organizationId, aggregate] of statsByOrganization.entries()) {
+    try {
+      const { data: profileRow, error: profileError } = await client
+        .from("profiles")
+        .select(
+          "stats_events_held, stats_volunteers_impacted, stats_hours_contributed"
+        )
+        .eq("id", organizationId)
+        .maybeSingle<{
+          stats_events_held: number | null;
+          stats_volunteers_impacted: number | null;
+          stats_hours_contributed: number | null;
+        }>();
+
+      if (profileError) {
+        console.warn(
+          "Falha ao obter estatísticas atuais da organização",
+          organizationId,
+          profileError
+        );
+        continue;
+      }
+
+      const currentEventsHeld = profileRow?.stats_events_held ?? 0;
+      const currentVolunteersImpacted =
+        profileRow?.stats_volunteers_impacted ?? 0;
+      const currentHoursContributed = profileRow?.stats_hours_contributed ?? 0;
+
+      const additionalHours = Math.round(aggregate.volunteerMinutes / 60);
+
+      const { error: statsUpdateError } = await client
+        .from("profiles")
+        .update({
+          stats_events_held: currentEventsHeld + aggregate.eventsCompleted,
+          stats_volunteers_impacted:
+            currentVolunteersImpacted + aggregate.volunteersImpacted,
+          stats_hours_contributed: currentHoursContributed + additionalHours,
+          updated_at: nowIso,
+        })
+        .eq("id", organizationId);
+
+      if (statsUpdateError) {
+        console.warn(
+          "Falha ao atualizar estatísticas da organização",
+          organizationId,
+          statsUpdateError
+        );
+      }
+    } catch (error) {
+      console.warn(
+        "Exceção ao atualizar estatísticas para organização",
+        organizationId,
+        error
+      );
+    }
+  }
+
+  const notificationsPayload = completedEventRows.map((event) => ({
+    user_id: event.organization_id,
+    type: "event_reminder" as const,
+    title: "Evento concluído",
+    message: `O evento "${
+      event.title ?? "Sem título"
+    }" terminou. Adicione fotografias e um resumo ao seu perfil.`,
+    link: `/organization/events/${event.id}/edit`,
+    created_at: nowIso,
+  }));
+
+  if (notificationsPayload.length > 0) {
+    const { error: notificationError } = await client
+      .from("notifications")
+      .insert(notificationsPayload);
+
+    if (notificationError) {
+      console.warn("Falha ao criar notificações pós-evento", notificationError);
+    }
   }
 
   return jsonResponse(

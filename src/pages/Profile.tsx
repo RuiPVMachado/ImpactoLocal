@@ -1,4 +1,5 @@
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Mail,
@@ -21,8 +22,12 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
-import { fetchVolunteerStatistics, updateProfile } from "../lib/api";
-import type { Profile, VolunteerStatistics } from "../types";
+import {
+  fetchOrganizationEvents,
+  fetchVolunteerStatistics,
+  updateProfile,
+} from "../lib/api";
+import type { Event, Profile, VolunteerStatistics } from "../types";
 import {
   getImageConstraintsDescription,
   removeStorageFileByUrl,
@@ -79,6 +84,7 @@ const buildFormStateFromProfile = (
 
 export default function Profile() {
   const { user, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<ProfileFormState>(() =>
     buildFormStateFromProfile(user)
@@ -99,6 +105,11 @@ export default function Profile() {
   const [newGalleryItems, setNewGalleryItems] = useState<GalleryUpload[]>([]);
   const [removedGalleryUrls, setRemovedGalleryUrls] = useState<string[]>([]);
   const galleryObjectUrlsRef = useRef<string[]>([]);
+  const [completedEvents, setCompletedEvents] = useState<Event[]>([]);
+  const [completedEventsLoading, setCompletedEventsLoading] = useState(false);
+  const [completedEventsError, setCompletedEventsError] = useState<
+    string | null
+  >(null);
 
   const updateFormField = <K extends keyof ProfileFormState>(
     key: K,
@@ -152,6 +163,62 @@ export default function Profile() {
   }, [userId, userType]);
 
   useEffect(() => {
+    let active = true;
+
+    const loadCompletedEvents = async () => {
+      if (userType !== "organization" || !userId) {
+        if (active) {
+          setCompletedEvents([]);
+          setCompletedEventsLoading(false);
+          setCompletedEventsError(null);
+        }
+        return;
+      }
+
+      setCompletedEventsLoading(true);
+      setCompletedEventsError(null);
+
+      try {
+        const events = await fetchOrganizationEvents(userId);
+        if (!active) {
+          return;
+        }
+
+        const completed = events.filter(
+          (event) => event.status === "completed"
+        );
+        completed.sort((a, b) => {
+          const aTime = new Date(a.date).getTime();
+          const bTime = new Date(b.date).getTime();
+          return Number.isFinite(bTime) && Number.isFinite(aTime)
+            ? bTime - aTime
+            : 0;
+        });
+
+        setCompletedEvents(completed);
+      } catch (error) {
+        console.error("Erro ao carregar eventos concluídos:", error);
+        if (active) {
+          setCompletedEventsError(
+            "Não foi possível carregar os eventos concluídos."
+          );
+          setCompletedEvents([]);
+        }
+      } finally {
+        if (active) {
+          setCompletedEventsLoading(false);
+        }
+      }
+    };
+
+    loadCompletedEvents();
+
+    return () => {
+      active = false;
+    };
+  }, [userId, userType]);
+
+  useEffect(() => {
     if (!user || isEditing) return;
 
     setFormData(buildFormStateFromProfile(user));
@@ -187,6 +254,12 @@ export default function Profile() {
       galleryObjectUrlsRef.current = [];
     };
   }, []);
+
+  useEffect(() => {
+    if (userType === "organization") {
+      void refreshProfile();
+    }
+  }, [refreshProfile, userType]);
 
   const handleStartEdit = () => {
     if (avatarObjectUrlRef.current) {
@@ -604,6 +677,17 @@ export default function Profile() {
   ];
 
   const organizationImpact = user?.impactStats ?? null;
+  const completedEventsShowcase = useMemo(() => {
+    return completedEvents.filter((event) => {
+      const hasSummary =
+        typeof event.postEventSummary === "string" &&
+        event.postEventSummary.trim().length > 0;
+      const hasGallery = Array.isArray(event.postEventGalleryUrls)
+        ? event.postEventGalleryUrls.length > 0
+        : false;
+      return hasSummary || hasGallery;
+    });
+  }, [completedEvents]);
 
   const formatStatDisplay = (value: number | null | undefined) =>
     typeof value === "number" && Number.isFinite(value)
@@ -1032,6 +1116,119 @@ export default function Profile() {
               </div>
             )}
           </div>
+
+          {isOrganization && (
+            <div className="bg-white rounded-lg shadow-md p-8">
+              <div className="flex items-center space-x-2 mb-6">
+                <CalendarCheck className="h-6 w-6 text-emerald-600" />
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Eventos concluídos
+                </h2>
+              </div>
+
+              {completedEventsLoading ? (
+                <div className="flex items-center justify-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-6 text-gray-600">
+                  <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                  <span>A carregar eventos concluídos...</span>
+                </div>
+              ) : completedEventsError ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                  {completedEventsError}
+                </div>
+              ) : completedEventsShowcase.length > 0 ? (
+                <div className="space-y-6">
+                  {completedEventsShowcase.map((event) => {
+                    const eventDate = new Date(event.date);
+                    const hasValidDate = !Number.isNaN(eventDate.getTime());
+                    const dateLabel = hasValidDate
+                      ? eventDate.toLocaleDateString("pt-PT", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "Data por confirmar";
+                    const timeLabel = hasValidDate
+                      ? eventDate.toLocaleTimeString("pt-PT", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : null;
+                    const gallery = Array.isArray(event.postEventGalleryUrls)
+                      ? event.postEventGalleryUrls
+                      : [];
+
+                    return (
+                      <div
+                        key={event.id}
+                        className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-6"
+                      >
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {event.title}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                              {dateLabel}
+                              {timeLabel ? ` · ${timeLabel}` : ""}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Local: {event.location.address}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(`/organization/events/${event.id}/edit`)
+                            }
+                            className="inline-flex items-center justify-center rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                          >
+                            Atualizar relato
+                          </button>
+                        </div>
+
+                        {event.postEventSummary &&
+                          event.postEventSummary.trim().length > 0 && (
+                            <p className="text-gray-700 whitespace-pre-line">
+                              {event.postEventSummary.trim()}
+                            </p>
+                          )}
+
+                        {gallery.length > 0 && (
+                          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                            {gallery.map((url) => (
+                              <div
+                                key={url}
+                                className="overflow-hidden rounded-lg shadow-sm"
+                              >
+                                <img
+                                  src={url}
+                                  alt={`Fotografia do evento ${event.title}`}
+                                  className="h-36 w-full object-cover"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+                  Assim que concluir um evento, adicione um resumo e fotografias
+                  na página de gestão de eventos para partilhar o impacto aqui
+                  no perfil público.
+                  <button
+                    type="button"
+                    onClick={() => navigate("/organization/events")}
+                    className="mt-4 inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  >
+                    Gerir eventos
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {isOrganization && (
             <div className="bg-white rounded-lg shadow-md p-8">

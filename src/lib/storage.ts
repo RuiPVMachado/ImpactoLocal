@@ -195,6 +195,19 @@ export async function uploadOrganizationGalleryImage(params: {
   });
 }
 
+export async function uploadEventRecapImage(params: {
+  organizationId: string;
+  eventId: string;
+  file: File;
+}): Promise<string> {
+  const extension = inferExtension(params.file);
+  const filename = `recap-${generateRandomId()}.${extension}`;
+  const path = `organizations/${params.organizationId}/recaps/${params.eventId}/${filename}`;
+  return uploadToBucket(EVENT_IMAGES_BUCKET, path, params.file, {
+    upsert: false,
+  });
+}
+
 export async function removeStorageFileByUrl(publicUrl: string | null) {
   if (!publicUrl) return;
   const parsed = parseStoragePublicUrl(publicUrl);
