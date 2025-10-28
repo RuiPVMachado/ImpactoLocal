@@ -5,6 +5,7 @@ import {
   Mail,
   Phone,
   MapPin,
+  Building2,
   Award,
   CreditCard as Edit,
   Loader2,
@@ -39,6 +40,7 @@ import {
 type ProfileFormState = {
   name: string;
   phone: string;
+  city: string;
   location: string;
   bio: string;
   mission: string;
@@ -65,6 +67,7 @@ const buildFormStateFromProfile = (
 ): ProfileFormState => ({
   name: profile?.name ?? "",
   phone: profile?.phone ?? "",
+  city: profile?.city ?? "",
   location: profile?.location ?? "",
   bio: profile?.bio ?? "",
   mission: profile?.mission ?? "",
@@ -93,6 +96,7 @@ export default function Profile() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [gallerySaving, setGallerySaving] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     user?.avatarUrl ?? null
   );
@@ -406,6 +410,100 @@ export default function Profile() {
     URL.revokeObjectURL(previewUrl);
   };
 
+  const handleGallerySave = async () => {
+    if (userType !== "organization") {
+      return;
+    }
+
+    if (!userId) {
+      toast.error("A sessão expirou. Inicie sessão novamente.");
+      return;
+    }
+
+    if (newGalleryItems.length === 0) {
+      toast.error("Selecione pelo menos uma imagem para guardar.");
+      return;
+    }
+
+    const currentEmail = user?.email?.trim() ?? "";
+    if (!currentEmail) {
+      toast.error("O email associado à conta é obrigatório.");
+      return;
+    }
+
+    const currentName = formData.name.trim() || user?.name?.trim() || "";
+    if (!currentName) {
+      toast.error("O nome é obrigatório para atualizar a galeria.");
+      return;
+    }
+
+    setGallerySaving(true);
+    const uploadedGalleryUrls: string[] = [];
+
+    try {
+      for (const item of newGalleryItems) {
+        const uploadedUrl = await uploadOrganizationGalleryImage({
+          organizationId: userId,
+          file: item.file,
+        });
+        uploadedGalleryUrls.push(uploadedUrl);
+      }
+
+      const trimmedPhone = formData.phone.trim();
+      const trimmedCity = formData.city.trim();
+      const trimmedLocation = formData.location.trim();
+      const trimmedBio = formData.bio.trim();
+      const trimmedMission = formData.mission.trim();
+      const trimmedVision = formData.vision.trim();
+      const trimmedHistory = formData.history.trim();
+
+      const updated = await updateProfile({
+        id: userId,
+        name: currentName,
+        email: currentEmail,
+        phone: trimmedPhone ? trimmedPhone : null,
+        city: trimmedCity ? trimmedCity : null,
+        location: trimmedLocation ? trimmedLocation : null,
+        bio: trimmedBio ? trimmedBio : null,
+        mission: trimmedMission ? trimmedMission : null,
+        vision: trimmedVision ? trimmedVision : null,
+        history: trimmedHistory ? trimmedHistory : null,
+        galleryUrls: [...galleryItems, ...uploadedGalleryUrls],
+      });
+
+      await refreshProfile();
+
+      setFormData(buildFormStateFromProfile(updated));
+      setGalleryItems(updated.galleryUrls ?? []);
+      setNewGalleryItems([]);
+      setRemovedGalleryUrls([]);
+      galleryObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      galleryObjectUrlsRef.current = [];
+
+      toast.success("Galeria atualizada com sucesso.");
+    } catch (error) {
+      if (uploadedGalleryUrls.length > 0) {
+        uploadedGalleryUrls.forEach((url) => {
+          void removeStorageFileByUrl(url).catch((cleanupError) => {
+            console.warn(
+              "Falha ao remover imagem recém-carregada da galeria",
+              cleanupError
+            );
+          });
+        });
+      }
+
+      console.error("Erro ao atualizar galeria:", error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar a galeria.";
+      toast.error(message);
+    } finally {
+      setGallerySaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!userId) {
       toast.error("A sessão expirou. Inicie sessão novamente.");
@@ -428,6 +526,7 @@ export default function Profile() {
     const trimmedMission = formData.mission.trim();
     const trimmedVision = formData.vision.trim();
     const trimmedHistory = formData.history.trim();
+    const trimmedCity = formData.city.trim();
 
     let parsedEventsHeld: number | null = null;
     let parsedVolunteersImpacted: number | null = null;
@@ -509,6 +608,7 @@ export default function Profile() {
         name: trimmedName,
         email: currentEmail,
         phone: formData.phone.trim() ? formData.phone.trim() : null,
+        city: trimmedCity ? trimmedCity : null,
         location: formData.location.trim() ? formData.location.trim() : null,
         bio: formData.bio.trim() ? formData.bio.trim() : null,
         avatarUrl: avatarUrlToPersist,
@@ -881,6 +981,27 @@ export default function Profile() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cidade
+                </label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(event) =>
+                      updateFormField("city", event.target.value)
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                ) : (
+                  <div className="flex items-center space-x-2 text-gray-900">
+                    <Building2 className="h-5 w-5 text-gray-400" />
+                    <span>{formData.city || "Adicionar cidade"}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Bio
                 </label>
                 {isEditing ? (
@@ -1239,45 +1360,68 @@ export default function Profile() {
                 </h2>
               </div>
 
-              {isEditing && (
-                <div className="mb-6 rounded-lg border border-dashed border-emerald-200 bg-emerald-50 p-4">
-                  <label className="flex flex-col gap-3 cursor-pointer sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-full bg-white p-3 shadow-sm">
-                        <ImagePlus className="h-5 w-5 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-700">
-                          Adicionar imagens à galeria
-                        </p>
-                        <p className="text-xs text-emerald-600">
-                          Até {MAX_GALLERY_IMAGES} imagens · JPG, PNG, WEBP
-                        </p>
-                      </div>
+              <div className="mb-6 rounded-lg border border-dashed border-emerald-200 bg-emerald-50 p-4">
+                <label className="flex flex-col gap-3 cursor-pointer sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-white p-3 shadow-sm">
+                      <ImagePlus className="h-5 w-5 text-emerald-600" />
                     </div>
-                    <span className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-600 shadow-sm">
-                      Selecionar imagens
-                    </span>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={handleGalleryFilesChange}
-                    />
-                  </label>
-                  <p className="mt-2 text-xs text-gray-500">
-                    {galleryItems.length + newGalleryItems.length} /{" "}
-                    {MAX_GALLERY_IMAGES} imagens na galeria.
-                  </p>
-                </div>
-              )}
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-700">
+                        Adicionar imagens à galeria
+                      </p>
+                      <p className="text-xs text-emerald-600">
+                        Até {MAX_GALLERY_IMAGES} imagens · JPG, PNG, WEBP
+                      </p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-600 shadow-sm">
+                    Selecionar imagens
+                  </span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handleGalleryFilesChange}
+                  />
+                </label>
+                <p className="mt-2 text-xs text-gray-500">
+                  {galleryItems.length + newGalleryItems.length} /{" "}
+                  {MAX_GALLERY_IMAGES} imagens na galeria.
+                </p>
+                {!isEditing && newGalleryItems.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-emerald-700">
+                      {newGalleryItems.length === 1
+                        ? "1 nova imagem pronta para guardar."
+                        : `${newGalleryItems.length} novas imagens prontas para guardar.`}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGallerySave}
+                        disabled={gallerySaving}
+                        className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {gallerySaving ? (
+                          <span className="flex items-center space-x-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>A guardar...</span>
+                          </span>
+                        ) : (
+                          "Guardar imagens"
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {galleryItems.length === 0 && newGalleryItems.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-gray-600">
-                  {isEditing
-                    ? "Ainda não adicionou imagens. Utilize o botão acima para carregar as primeiras fotos."
-                    : "A organização ainda não partilhou imagens na galeria."}
+                  Ainda não adicionou imagens. Utilize o botão acima para
+                  carregar as primeiras fotos.
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
@@ -1302,31 +1446,30 @@ export default function Profile() {
                       )}
                     </div>
                   ))}
-                  {isEditing &&
-                    newGalleryItems.map((item) => (
-                      <div
-                        key={item.previewUrl}
-                        className="relative overflow-hidden rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50"
+                  {newGalleryItems.map((item) => (
+                    <div
+                      key={item.previewUrl}
+                      className="relative overflow-hidden rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50"
+                    >
+                      <img
+                        src={item.previewUrl}
+                        alt="Nova imagem da galeria"
+                        className="h-48 w-full object-cover opacity-90"
+                      />
+                      <span className="absolute top-3 left-3 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                        Novo
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRemoveNewGalleryItem(item.previewUrl)
+                        }
+                        className="absolute top-3 right-3 rounded-full bg-white/90 p-1.5 text-rose-600 shadow-md transition hover:bg-white"
                       >
-                        <img
-                          src={item.previewUrl}
-                          alt="Nova imagem da galeria"
-                          className="h-48 w-full object-cover opacity-90"
-                        />
-                        <span className="absolute top-3 left-3 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
-                          Novo
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleRemoveNewGalleryItem(item.previewUrl)
-                          }
-                          className="absolute top-3 right-3 rounded-full bg-white/90 p-1.5 text-rose-600 shadow-md transition hover:bg-white"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

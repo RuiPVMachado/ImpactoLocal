@@ -9,6 +9,7 @@ import type {
   Notification,
   OrganizationDashboardSummary,
   OrganizationImpactStats,
+  OrganizationDirectoryEntry,
   OrganizationPublicProfile,
   Profile,
   ProfileSummary,
@@ -63,6 +64,7 @@ type UpdateProfilePayload = {
   email: string;
   phone?: string | null;
   bio?: string | null;
+  city?: string | null;
   location?: string | null;
   avatarUrl?: string | null;
   mission?: string | null;
@@ -109,6 +111,14 @@ type ContactMessageResponse =
   | { success: true; messageId?: string }
   | { success: false; error?: string };
 
+type ListOrganizationsFunctionResponse =
+  | { success: true; data: OrganizationDirectoryEntry[] }
+  | { success: false; error?: string };
+
+type PublicOrganizationProfileFunctionResponse =
+  | { success: true; data: OrganizationPublicProfile }
+  | { success: false; error?: string };
+
 type ProfileRow = {
   id: string;
   email: string;
@@ -117,6 +127,7 @@ type ProfileRow = {
   avatar_url?: string | null;
   phone?: string | null;
   bio?: string | null;
+  city?: string | null;
   location?: string | null;
   mission?: string | null;
   vision?: string | null;
@@ -320,6 +331,7 @@ const toProfile = (row: ProfileRow): Profile => {
     avatarUrl: row.avatar_url ?? null,
     phone: row.phone ?? null,
     bio: row.bio ?? null,
+    city: row.city ?? null,
     location: row.location ?? null,
     mission: row.mission ?? null,
     vision: row.vision ?? null,
@@ -513,6 +525,62 @@ async function ensureExpiredEventsProcessed(): Promise<void> {
   });
 
   await expiredEventsProcessingPromise;
+}
+
+async function fetchOrganizationsDirectoryViaFunction(): Promise<
+  OrganizationDirectoryEntry[]
+> {
+  const { data, error } = await supabase.functions.invoke("list-organizations");
+
+  if (error) {
+    console.error("Falha ao invocar list-organizations", error);
+    throw error;
+  }
+
+  const payload = data as ListOrganizationsFunctionResponse | null;
+
+  if (!payload?.success || !payload.data) {
+    const reason =
+      payload && "error" in payload && typeof payload.error === "string"
+        ? payload.error
+        : "Não foi possível carregar as organizações.";
+    throw new Error(reason);
+  }
+
+  return payload.data;
+}
+
+async function fetchOrganizationPublicProfileViaFunction(
+  organizationId: string
+): Promise<OrganizationPublicProfile | null> {
+  const { data, error } = await supabase.functions.invoke(
+    "public-organization-profile",
+    {
+      body: { organizationId },
+    }
+  );
+
+  if (error) {
+    console.error("Falha ao invocar public-organization-profile", error);
+    throw error;
+  }
+
+  const payload = data as PublicOrganizationProfileFunctionResponse | null;
+
+  if (!payload?.success || !payload.data) {
+    const reason =
+      payload && "error" in payload && typeof payload.error === "string"
+        ? payload.error
+        : null;
+
+    if (reason) {
+      console.warn("public-organization-profile retornou erro", reason);
+    }
+
+    return null;
+  }
+
+  return payload.data;
 }
 
 async function invokeAdminManage<T>(payload: AdminManagePayload): Promise<T> {
@@ -752,6 +820,7 @@ export async function updateProfile(
   const email = payload.email.trim().toLowerCase();
   const phone = normalizeOptional(payload.phone);
   const bio = normalizeOptional(payload.bio);
+  const city = normalizeOptional(payload.city);
   const location = normalizeOptional(payload.location);
   const mission = normalizeOptional(payload.mission);
   const vision = normalizeOptional(payload.vision);
@@ -824,6 +893,7 @@ export async function updateProfile(
     email,
     phone,
     bio,
+    city,
     location,
     mission,
     vision,
@@ -865,10 +935,11 @@ export async function updateProfile(
     throw new Error("Perfil não encontrado.");
   }
 
-  const metadata: Record<string, string | null | undefined> = {
+  const metadata: Record<string, string | string[] | null | undefined> = {
     name,
     phone: phone ?? undefined,
     bio: bio ?? undefined,
+    city: city ?? undefined,
     location: location ?? undefined,
     mission: mission ?? undefined,
     vision: vision ?? undefined,
@@ -877,6 +948,10 @@ export async function updateProfile(
 
   if (avatarUrl !== undefined) {
     metadata.avatar_url = avatarUrl;
+  }
+
+  if (galleryUrls !== undefined) {
+    metadata.gallery_urls = galleryUrls;
   }
 
   const { error: authMetadataError } = await supabase.auth.updateUser({
@@ -1572,24 +1647,47 @@ export async function fetchOrganizationPublicProfile(
 
   await ensureExpiredEventsProcessed();
 
-  const { data: profileRow, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", organizationId)
-    .eq("type", "organization")
-    .maybeSingle<ProfileRow>();
+  const loadViaFunction = async () =>
+    fetchOrganizationPublicProfileViaFunction(organizationId);
 
-  if (profileError) throw profileError;
-  if (!profileRow) {
-    return null;
+  let session:
+    | Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
+    | null = null;
+
+  try {
+    const sessionResponse = await supabase.auth.getSession();
+    session = sessionResponse.data.session ?? null;
+  } catch (error) {
+    console.warn(
+      "Falha ao determinar sessão atual; a obter perfil público da organização via função.",
+      error
+    );
+    return loadViaFunction();
   }
 
-  const organization = toProfile(profileRow);
+  if (!session) {
+    return loadViaFunction();
+  }
 
-  const { data: eventsData, error: eventsError } = await supabase
-    .from("events")
-    .select(
-      `*,
+  try {
+    const { data: profileRow, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", organizationId)
+      .eq("type", "organization")
+      .maybeSingle<ProfileRow>();
+
+    if (profileError) throw profileError;
+    if (!profileRow) {
+      return null;
+    }
+
+    const organization = toProfile(profileRow);
+
+    const { data: eventsData, error: eventsError } = await supabase
+      .from("events")
+      .select(
+        `*,
         organization:profiles!events_organization_id_fkey(
           id,
           name,
@@ -1598,39 +1696,157 @@ export async function fetchOrganizationPublicProfile(
           bio,
           type
         )`
-    )
-    .eq("organization_id", organizationId)
-    .order("date", { ascending: false });
+      )
+      .eq("organization_id", organizationId)
+      .order("date", { ascending: false });
 
-  if (eventsError) throw eventsError;
+    if (eventsError) throw eventsError;
 
-  const events = (eventsData ?? []).map(toEvent);
+    const events = (eventsData ?? []).map(toEvent);
 
-  const now = new Date();
-  const fallbackEventsHeld = events.filter(
-    (event) => new Date(event.date).getTime() < now.getTime()
-  ).length;
-  const fallbackVolunteersImpacted = events.reduce(
-    (total, event) => total + (event.volunteersRegistered ?? 0),
-    0
-  );
+    const now = new Date();
+    const fallbackEventsHeld = events.filter(
+      (event) => new Date(event.date).getTime() < now.getTime()
+    ).length;
+    const fallbackVolunteersImpacted = events.reduce(
+      (total, event) => total + (event.volunteersRegistered ?? 0),
+      0
+    );
 
-  const mergedImpactStats: OrganizationImpactStats = {
-    eventsHeld: organization.impactStats?.eventsHeld ?? fallbackEventsHeld,
-    volunteersImpacted:
-      organization.impactStats?.volunteersImpacted ??
-      fallbackVolunteersImpacted,
-    hoursContributed: organization.impactStats?.hoursContributed ?? null,
-    beneficiariesServed: organization.impactStats?.beneficiariesServed ?? null,
-  };
+    const mergedImpactStats: OrganizationImpactStats = {
+      eventsHeld: organization.impactStats?.eventsHeld ?? fallbackEventsHeld,
+      volunteersImpacted:
+        organization.impactStats?.volunteersImpacted ??
+        fallbackVolunteersImpacted,
+      hoursContributed: organization.impactStats?.hoursContributed ?? null,
+      beneficiariesServed:
+        organization.impactStats?.beneficiariesServed ?? null,
+    };
 
-  return {
-    organization: {
-      ...organization,
-      impactStats: mergedImpactStats,
-    },
-    events,
-  };
+    return {
+      organization: {
+        ...organization,
+        impactStats: mergedImpactStats,
+      },
+      events,
+    };
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "Sem permissões para ler perfil diretamente; a recorrer à função pública.",
+        error
+      );
+      return loadViaFunction();
+    }
+    throw error;
+  }
+}
+
+export async function fetchOrganizationsDirectory(): Promise<
+  OrganizationDirectoryEntry[]
+> {
+  await ensureExpiredEventsProcessed();
+
+  let session:
+    | Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
+    | null = null;
+
+  try {
+    const sessionResponse = await supabase.auth.getSession();
+    session = sessionResponse.data.session ?? null;
+  } catch (error) {
+    console.warn(
+      "Falha ao determinar sessão atual; a listar organizações via função pública.",
+      error
+    );
+    return fetchOrganizationsDirectoryViaFunction();
+  }
+
+  if (!session) {
+    return fetchOrganizationsDirectoryViaFunction();
+  }
+
+  try {
+    const { data: organizationRows, error: organizationsError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("type", "organization")
+      .order("name", { ascending: true });
+
+    if (organizationsError) {
+      throw organizationsError;
+    }
+
+    const organizations = (organizationRows ?? []).map(toProfile);
+
+    if (organizations.length === 0) {
+      return [];
+    }
+
+    const organizationIds = organizations.map(
+      (organization) => organization.id
+    );
+
+    const { data: eventsRows, error: eventsError } = await supabase
+      .from("events")
+      .select(
+        `*,
+        organization:profiles!events_organization_id_fkey(
+          id,
+          name,
+          email,
+          avatar_url,
+          bio,
+          type
+        )`
+      )
+      .in("organization_id", organizationIds)
+      .eq("status", "open")
+      .order("date", { ascending: true });
+
+    if (eventsError) {
+      throw eventsError;
+    }
+
+    const events = (eventsRows ?? []).map((row) =>
+      toEvent(row as unknown as EventRow)
+    );
+
+    const eventsByOrganization = new Map<string, Event[]>();
+
+    for (const event of events) {
+      const existing = eventsByOrganization.get(event.organizationId);
+      if (existing) {
+        existing.push(event);
+      } else {
+        eventsByOrganization.set(event.organizationId, [event]);
+      }
+    }
+
+    return organizations.map((organization) => {
+      const activeEvents = [
+        ...(eventsByOrganization.get(organization.id) ?? []),
+      ];
+      activeEvents.sort(
+        (first, second) =>
+          new Date(first.date).getTime() - new Date(second.date).getTime()
+      );
+
+      return {
+        organization,
+        activeEvents,
+      };
+    });
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "Sem permissões para ler perfis diretamente; a utilizar função pública.",
+        error
+      );
+      return fetchOrganizationsDirectoryViaFunction();
+    }
+    throw error;
+  }
 }
 
 export async function fetchOrganizationDashboard(

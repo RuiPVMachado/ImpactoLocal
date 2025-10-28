@@ -32,6 +32,9 @@ import SobreNos from "./pages/SobreNos";
 import Contact from "./pages/Contact";
 import FAQ from "./pages/FAQ";
 import MapExplorer from "./pages/MapExplorer";
+import Organizations from "./pages/Organizations";
+import OrganizationProfilePublic from "./pages/OrganizationProfilePublic";
+import VolunteerProfilePublic from "./pages/VolunteerProfilePublic";
 
 function PasswordResetBoundary({ children }: { children: ReactNode }) {
   const { passwordResetPending } = useAuth();
@@ -87,9 +90,22 @@ function AppRoutes() {
               <Route path="/events" element={<Events />} />
               <Route path="/events/:id" element={<EventDetails />} />
               <Route path="/mapa" element={<MapExplorer />} />
+              <Route path="/organizacoes" element={<Organizations />} />
+              <Route
+                path="/organizacoes/:organizationId"
+                element={<OrganizationProfilePublic />}
+              />
               <Route path="/sobre-nos" element={<SobreNos />} />
               <Route path="/contacto" element={<Contact />} />
               <Route path="/faq" element={<FAQ />} />
+              <Route
+                path="/voluntarios/:volunteerId"
+                element={
+                  <ProtectedRoute allowedRoles={["organization", "admin"]}>
+                    <VolunteerProfilePublic />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route
                 path="/my-applications"

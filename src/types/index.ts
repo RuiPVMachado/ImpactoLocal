@@ -8,6 +8,7 @@ export interface Profile {
   avatarUrl?: string | null;
   phone?: string | null;
   bio?: string | null;
+  city?: string | null;
   location?: string | null;
   mission?: string | null;
   vision?: string | null;
@@ -138,4 +139,9 @@ export interface Notification {
 export interface OrganizationPublicProfile {
   organization: Profile;
   events: Event[];
+}
+
+export interface OrganizationDirectoryEntry {
+  organization: Profile;
+  activeEvents: Event[];
 }

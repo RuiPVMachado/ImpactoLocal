@@ -67,6 +67,7 @@ type ProfileUpsertPayload = {
   avatarUrl?: string | null;
   phone?: string | null;
   bio?: string | null;
+  city?: string | null;
   location?: string | null;
   mission?: string | null;
   vision?: string | null;
@@ -135,6 +136,7 @@ function extractProfilePayloadFromUser(user: User): ProfileUpsertPayload {
     avatarUrl: normalizeOptional(metadata.avatar_url),
     phone: normalizeOptional(metadata.phone),
     bio: normalizeOptional(metadata.bio),
+    city: normalizeOptional(metadata.city),
     location: normalizeOptional(metadata.location),
     mission,
     vision,
@@ -154,6 +156,7 @@ function buildProfileFromAuthUser(user: User): Profile {
     avatarUrl: payload.avatarUrl ?? null,
     phone: payload.phone ?? null,
     bio: payload.bio ?? null,
+    city: payload.city ?? null,
     location: payload.location ?? null,
     mission: payload.mission ?? null,
     vision: payload.vision ?? null,
@@ -233,6 +236,7 @@ async function createProfileRecord(
       avatar_url: payload.avatarUrl ?? null,
       phone: payload.phone ?? null,
       bio: payload.bio ?? null,
+      city: payload.city ?? null,
       location: payload.location ?? null,
       mission,
       vision,

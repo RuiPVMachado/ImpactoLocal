@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { FileText } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   MapPin,
@@ -7,13 +8,13 @@ import {
   User,
   Calendar,
   Home,
-  Users,
   Settings,
   Heart,
   Lock,
   HelpCircle,
   MessageCircle,
   Layers,
+  Building2,
   Menu,
   X,
   ChevronDown,
@@ -27,18 +28,21 @@ export default function Navbar() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isHamburgerVisible, setIsHamburgerVisible] = useState(true);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const lastScrollYRef = useRef(0);
 
   const primaryLinks = [
     { to: "/events", label: "Eventos", icon: Calendar },
     { to: "/mapa", label: "Mapa", icon: Layers },
-    { to: "/faq", label: "FAQ", icon: HelpCircle },
+    { to: "/organizacoes", label: "Organizações", icon: Building2 },
   ];
 
   const communityLinks = [
     { to: "/sobre-nos", label: "Sobre Nós", icon: Heart },
+    { to: "/faq", label: "FAQ", icon: HelpCircle },
     { to: "/contacto", label: "Contacto", icon: MessageCircle },
   ];
 
@@ -47,7 +51,11 @@ export default function Navbar() {
 
   if (user?.type === "volunteer") {
     accountLinks.push(
-      { to: "/my-applications", label: "Minhas Candidaturas", icon: Users },
+      {
+        to: "/my-applications",
+        label: "Minhas Candidaturas",
+        icon: FileText,
+      },
       { to: "/profile", label: "Perfil", icon: User }
     );
   }
@@ -84,9 +92,30 @@ export default function Navbar() {
     };
   }, [isMoreMenuOpen]);
 
+  useEffect(() => {
+    if (!isAccountMenuOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsAccountMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isAccountMenuOpen]);
+
   const closeMenus = () => {
     setIsMobileMenuOpen(false);
     setIsMoreMenuOpen(false);
+    setIsAccountMenuOpen(false);
   };
 
   const handleLogout = async () => {
@@ -166,6 +195,8 @@ export default function Navbar() {
     lastScrollYRef.current = window.scrollY;
   }, [isMobileMenuOpen]);
 
+  const accountButtonLabel = user?.name?.split(" ")[0] ?? "Conta";
+
   return (
     <nav className="bg-brand-background/95 sticky top-0 z-50 border-b border-brand-surfaceAlt/70 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -200,7 +231,10 @@ export default function Navbar() {
               <div className="relative" ref={moreMenuRef}>
                 <button
                   type="button"
-                  onClick={() => setIsMoreMenuOpen((current) => !current)}
+                  onClick={() => {
+                    setIsMoreMenuOpen((current) => !current);
+                    setIsAccountMenuOpen(false);
+                  }}
                   className="inline-flex items-center gap-2 rounded-button px-3 py-2 transition hover:bg-brand-secondary/10 hover:text-brand-secondary"
                   aria-haspopup="true"
                   aria-expanded={isMoreMenuOpen}
@@ -246,23 +280,48 @@ export default function Navbar() {
             ) : isAuthenticated ? (
               <>
                 <NotificationBell />
-                {accountLinks.map((link) => (
-                  <Link
-                    key={link.to}
-                    to={link.to}
-                    className="inline-flex items-center gap-2 rounded-button px-3 py-2 transition hover:bg-brand-secondary/10 hover:text-brand-secondary"
+                <div className="relative" ref={accountMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountMenuOpen((current) => !current);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-button border border-brand-secondary/20 bg-white px-3 py-2 transition hover:border-brand-secondary/40 hover:text-brand-secondary"
+                    aria-haspopup="true"
+                    aria-expanded={isAccountMenuOpen}
                   >
-                    <link.icon className="h-4 w-4" />
-                    <span>{link.label}</span>
-                  </Link>
-                ))}
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center gap-2 rounded-button px-3 py-2 transition hover:text-red-600"
-                >
-                  <LogOut className="h-5 w-5" />
-                  <span>Sair</span>
-                </button>
+                    <User className="h-4 w-4" />
+                    <span>{accountButtonLabel}</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+
+                  {isAccountMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-brand-secondary/15 bg-white py-2 shadow-soft">
+                      {accountLinks.map((link) => (
+                        <Link
+                          key={link.to}
+                          to={link.to}
+                          onClick={closeMenus}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-brand-neutral transition hover:bg-brand-secondary/10 hover:text-brand-secondary"
+                        >
+                          <link.icon className="h-4 w-4" />
+                          <span>{link.label}</span>
+                        </Link>
+                      ))}
+                      <div className="mt-2 border-t border-brand-secondary/10 pt-2">
+                        <button
+                          onClick={handleLogout}
+                          className="flex w-full items-center gap-2 px-4 py-2 text-sm font-medium text-rose-500 transition hover:bg-rose-50"
+                          type="button"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Sair</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
@@ -292,9 +351,8 @@ export default function Navbar() {
             onClick={() => {
               setIsMobileMenuOpen((current) => !current);
               setIsHamburgerVisible(true);
-              if (isMoreMenuOpen) {
-                setIsMoreMenuOpen(false);
-              }
+              setIsMoreMenuOpen(false);
+              setIsAccountMenuOpen(false);
             }}
             aria-label="Abrir menu"
             aria-expanded={isMobileMenuOpen}
