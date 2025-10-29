@@ -28,6 +28,7 @@ import {
   validateApplicationAttachment,
 } from "../lib/storage";
 import type { Application, ApplicationStatus, Event } from "../types";
+import AddToCalendarButton from "../components/AddToCalendarButton";
 
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
@@ -635,7 +636,7 @@ export default function EventDetails() {
                 lng={event.location.lng ?? undefined}
               />
 
-              <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center">
                 {!applicationState.hidden && (
                   <button
                     onClick={handleApply}
@@ -647,6 +648,12 @@ export default function EventDetails() {
                     {applicationState.label}
                   </button>
                 )}
+                <AddToCalendarButton
+                  event={event}
+                  variant="ghost"
+                  label="Adicionar ao calendário"
+                  className={applicationState.hidden ? "md:flex-1" : ""}
+                />
                 <button
                   type="button"
                   onClick={() =>

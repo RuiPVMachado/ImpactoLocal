@@ -2,6 +2,7 @@ import { Calendar, MapPin, Users, Clock, ArrowRight } from "lucide-react";
 import { getEventEndDate } from "../lib/datetime";
 import { formatDurationWithHours } from "../lib/formatters";
 import { Event } from "../types";
+import AddToCalendarButton from "./AddToCalendarButton";
 
 interface EventCardProps {
   event: Event;
@@ -136,19 +137,27 @@ export default function EventCard({
             </span>
           </div>
 
-          {showApplyButton && (
-            <button
-              type="button"
-              onClick={(eventClick) => {
-                eventClick.stopPropagation();
-                onClick?.();
-              }}
-              className="flex items-center text-brand-secondary text-sm font-semibold transition hover:text-brand-secondary/80"
-            >
-              Ver Detalhes
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <AddToCalendarButton
+              event={event}
+              variant="ghost"
+              size="sm"
+              label="Calendário"
+            />
+            {showApplyButton && (
+              <button
+                type="button"
+                onClick={(eventClick) => {
+                  eventClick.stopPropagation();
+                  onClick?.();
+                }}
+                className="flex items-center text-brand-secondary text-sm font-semibold transition hover:text-brand-secondary/80"
+              >
+                Ver Detalhes
+                <ArrowRight className="h-4 w-4 ml-1" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

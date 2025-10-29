@@ -7,6 +7,7 @@ import {
   LogOut,
   User,
   Calendar,
+  CalendarCheck,
   Home,
   Settings,
   Heart,
@@ -55,6 +56,11 @@ export default function Navbar() {
         to: "/my-applications",
         label: "Minhas Candidaturas",
         icon: FileText,
+      },
+      {
+        to: "/calendar",
+        label: "Calendário",
+        icon: CalendarCheck,
       },
       { to: "/profile", label: "Perfil", icon: User }
     );

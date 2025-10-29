@@ -35,6 +35,7 @@ import MapExplorer from "./pages/MapExplorer";
 import Organizations from "./pages/Organizations";
 import OrganizationProfilePublic from "./pages/OrganizationProfilePublic";
 import VolunteerProfilePublic from "./pages/VolunteerProfilePublic";
+import PersonalCalendar from "./pages/PersonalCalendar";
 
 function PasswordResetBoundary({ children }: { children: ReactNode }) {
   const { passwordResetPending } = useAuth();
@@ -112,6 +113,14 @@ function AppRoutes() {
                 element={
                   <ProtectedRoute allowedRoles={["volunteer"]}>
                     <MyApplications />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/calendar"
+                element={
+                  <ProtectedRoute allowedRoles={["volunteer"]}>
+                    <PersonalCalendar />
                   </ProtectedRoute>
                 }
               />

@@ -18,6 +18,7 @@ import { cancelApplication, fetchApplicationsByVolunteer } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { getApplicationAttachmentSignedUrl } from "../lib/storage";
 import type { Application } from "../types";
+import AddToCalendarButton from "../components/AddToCalendarButton";
 
 type StatusKey = Application["status"];
 
@@ -313,16 +314,29 @@ export default function MyApplications() {
                           {downloadingAttachmentId === application.id
                             ? "A preparar ficheiro..."
                             : application.attachmentName
-                            ? `Descarregar ${application.attachmentName}`
-                            : "Descarregar ficheiro"}
+                            ? `Visualizar ${application.attachmentName}`
+                            : "Visualizar ficheiro"}
                         </button>
                       )}
 
                       {application.status === "approved" && (
-                        <p className="mt-3 rounded-lg bg-emerald-100 px-4 py-3 text-sm text-emerald-800">
-                          Será contactado(a) pela organização com mais detalhes
-                          brevemente.
-                        </p>
+                        <div className="mt-3 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                          <p>
+                            Será contactado(a) pela organização com mais
+                            detalhes brevemente. Exporta o evento para o teu
+                            calendário para não esqueceres.
+                          </p>
+                          {application.event && (
+                            <div className="mt-3">
+                              <AddToCalendarButton
+                                event={application.event}
+                                size="sm"
+                                variant="ghost"
+                                label="Adicionar ao calendário"
+                              />
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {application.status === "pending" && (

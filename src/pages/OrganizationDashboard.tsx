@@ -384,7 +384,7 @@ export default function OrganizationDashboard() {
                                 <Download className="h-4 w-4" />
                                 {downloadingAttachmentId === application.id
                                   ? "A preparar anexo..."
-                                  : "Descarregar anexo"}
+                                  : "Visualizar anexo"}
                               </button>
                               {application.attachmentName && (
                                 <span className="text-xs text-gray-500">

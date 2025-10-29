@@ -1,0 +1,6 @@
+[functions]
+verify_jwt = false
+
+[schedule]
+# Executa todos os dias às 08:00 UTC
+cron = "0 8 * * *"
