@@ -16,7 +16,9 @@ export default function Home() {
     const loadFeaturedEvents = async () => {
       try {
         setEventsError(null);
-        const events = await fetchEvents({ limit: 6 });
+        const result = await fetchEvents({ limit: 6 });
+        // fetchEvents with limit returns array (legacy mode)
+        const events = Array.isArray(result) ? result : result.data;
         if (active) {
           setFeaturedEvents(events);
         }

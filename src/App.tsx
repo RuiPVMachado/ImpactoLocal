@@ -36,6 +36,7 @@ import Organizations from "./pages/Organizations";
 import OrganizationProfilePublic from "./pages/OrganizationProfilePublic";
 import VolunteerProfilePublic from "./pages/VolunteerProfilePublic";
 import PersonalCalendar from "./pages/PersonalCalendar";
+import ShareEventRecap from "./pages/ShareEventRecap";
 
 function PasswordResetBoundary({ children }: { children: ReactNode }) {
   const { passwordResetPending } = useAuth();
@@ -162,6 +163,14 @@ function AppRoutes() {
                 element={
                   <ProtectedRoute allowedRoles={["organization"]}>
                     <EditEvent />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/organization/events/:id/recap"
+                element={
+                  <ProtectedRoute allowedRoles={["organization"]}>
+                    <ShareEventRecap />
                   </ProtectedRoute>
                 }
               />

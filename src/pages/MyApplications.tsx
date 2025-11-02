@@ -14,11 +14,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { cancelApplication, fetchApplicationsByVolunteer } from "../lib/api";
+import { cancelApplication, fetchApplicationsByVolunteer, type PaginatedResponse } from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { getApplicationAttachmentSignedUrl } from "../lib/storage";
 import type { Application } from "../types";
 import AddToCalendarButton from "../components/AddToCalendarButton";
+import Pagination from "../components/Pagination";
+
+const DEFAULT_PAGE_SIZE = 20;
 
 type StatusKey = Application["status"];
 
@@ -73,6 +76,9 @@ export default function MyApplications() {
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<
     string | null
   >(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pagination, setPagination] = useState<PaginatedResponse<Application> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -80,6 +86,7 @@ export default function MyApplications() {
     const load = async () => {
       if (!user) {
         setApplications([]);
+        setPagination(null);
         setLoading(false);
         return;
       }
@@ -87,9 +94,20 @@ export default function MyApplications() {
       setLoading(true);
 
       try {
-        const data = await fetchApplicationsByVolunteer(user.id);
+        const result = await fetchApplicationsByVolunteer(user.id, {
+          page: currentPage,
+          pageSize,
+        });
+        
         if (active) {
-          setApplications(data);
+          if (Array.isArray(result)) {
+            setApplications(result);
+            setPagination(null);
+          } else {
+            setApplications(result.data);
+            setPagination(result);
+            setCurrentPage(result.page);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar candidaturas:", error);
@@ -97,6 +115,8 @@ export default function MyApplications() {
           toast.error(
             "Não foi possível carregar as candidaturas. Tente novamente mais tarde."
           );
+          setApplications([]);
+          setPagination(null);
         }
       } finally {
         if (active) {
@@ -110,7 +130,7 @@ export default function MyApplications() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, currentPage, pageSize]);
 
   const sortedApplications = useMemo(
     () =>
@@ -120,6 +140,16 @@ export default function MyApplications() {
       ),
     [applications]
   );
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1);
+  };
 
   const handleCancel = async (applicationId: string) => {
     if (!user) return;
@@ -216,8 +246,9 @@ export default function MyApplications() {
         )}
 
         {!showGlobalLoader && user && sortedApplications.length > 0 && (
-          <div className="space-y-6">
-            {sortedApplications.map((application) => {
+          <>
+            <div className="space-y-6 mb-8">
+              {sortedApplications.map((application) => {
               const status = statusConfig[application.status];
               const StatusIcon = status.icon;
               const event = application.event;
@@ -370,7 +401,22 @@ export default function MyApplications() {
                 </article>
               );
             })}
-          </div>
+            </div>
+            {pagination && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.total}
+                  pageSize={pagination.pageSize}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  showPageSizeSelector
+                  pageSizeOptions={[10, 20, 50, 100]}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

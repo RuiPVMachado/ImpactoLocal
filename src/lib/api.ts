@@ -24,6 +24,17 @@ type EventFilters = {
   searchTerm?: string;
   status?: "open" | "closed" | "completed";
   limit?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+export type PaginatedResponse<T> = {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasMore: boolean;
 };
 
 type CreateEventPayload = {
@@ -307,21 +318,14 @@ const toProfile = (row: ProfileRow): Profile => {
   const hoursContributed = parseStatNumber(row.stats_hours_contributed);
   const beneficiariesServed = parseStatNumber(row.stats_beneficiaries_served);
 
-  const hasImpactStats = [
+  // Always return an impactStats object structure, even if all values are null
+  // This ensures the UI can always access the stats fields
+  const impactStats = {
     eventsHeld,
     volunteersImpacted,
     hoursContributed,
     beneficiariesServed,
-  ].some((value) => value !== null);
-
-  const impactStats = hasImpactStats
-    ? {
-        eventsHeld,
-        volunteersImpacted,
-        hoursContributed,
-        beneficiariesServed,
-      }
-    : null;
+  };
 
   return {
     id: row.id,
@@ -1016,8 +1020,12 @@ export async function submitContactMessage(
 
 export async function fetchEvents(
   filters: EventFilters = {}
-): Promise<Event[]> {
+): Promise<Event[] | PaginatedResponse<Event>> {
   await ensureExpiredEventsProcessed();
+
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? (filters.limit ?? 20);
+  const usePagination = filters.page !== undefined || filters.pageSize !== undefined;
 
   const selectWithOrganization = `*,
         organization:profiles!events_organization_id_fkey(
@@ -1029,10 +1037,10 @@ export async function fetchEvents(
           type
         )`;
 
-  const applyFilters = (selectStatement: string) => {
+  const applyFilters = (selectStatement: string, countMode: "exact" | "estimated" = "exact") => {
     let query = supabase
       .from("events")
-      .select(selectStatement)
+      .select(selectStatement, countMode === "exact" ? { count: "exact" } : undefined)
       .order("date", { ascending: true });
 
     if (filters.status) {
@@ -1055,14 +1063,18 @@ export async function fetchEvents(
       }
     }
 
-    if (filters.limit) {
+    if (usePagination) {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+    } else if (filters.limit) {
       query = query.limit(filters.limit);
     }
 
     return query;
   };
 
-  const { data, error } = await applyFilters(selectWithOrganization);
+  const { data, error, count } = await applyFilters(selectWithOrganization);
 
   if (error) {
     if (isPermissionDeniedError(error)) {
@@ -1071,22 +1083,53 @@ export async function fetchEvents(
         error
       );
       const { data: fallbackData, error: fallbackError } = await applyFilters(
-        "*"
+        "*",
+        "estimated"
       );
 
       if (fallbackError) {
         throw fallbackError;
       }
 
-      return (fallbackData ?? []).map((row) =>
+      const events = (fallbackData ?? []).map((row) =>
         toEvent(row as unknown as EventRow)
       );
+
+      if (usePagination) {
+        // For fallback, we can't get exact count, so estimate
+        const estimatedTotal = events.length === pageSize ? page * pageSize + pageSize : page * pageSize;
+        return {
+          data: events,
+          total: estimatedTotal,
+          page,
+          pageSize,
+          totalPages: Math.ceil(estimatedTotal / pageSize),
+          hasMore: events.length === pageSize,
+        };
+      }
+
+      return events;
     }
 
     throw error;
   }
 
-  return (data ?? []).map((row) => toEvent(row as unknown as EventRow));
+  const events = (data ?? []).map((row) => toEvent(row as unknown as EventRow));
+
+  if (usePagination) {
+    const total = count ?? 0;
+    const totalPages = Math.ceil(total / pageSize);
+    return {
+      data: events,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      hasMore: page < totalPages,
+    };
+  }
+
+  return events;
 }
 
 export async function applyToEvent(
@@ -1239,16 +1282,45 @@ export async function cancelApplication(
 }
 
 export async function fetchApplicationsByVolunteer(
-  volunteerId: string
-): Promise<Application[]> {
-  const { data, error } = await supabase
+  volunteerId: string,
+  options?: { page?: number; pageSize?: number }
+): Promise<Application[] | PaginatedResponse<Application>> {
+  const page = options?.page ?? 1;
+  const pageSize = options?.pageSize ?? 50;
+  const usePagination = options?.page !== undefined || options?.pageSize !== undefined;
+
+  let query = supabase
     .from("applications")
-    .select(APPLICATION_SELECT)
+    .select(APPLICATION_SELECT, usePagination ? { count: "exact" } : undefined)
     .eq("volunteer_id", volunteerId)
     .order("applied_at", { ascending: false });
 
+  if (usePagination) {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, error, count } = await query;
+
   if (error) throw error;
-  return (data ?? []).map(toApplication);
+
+  const applications = (data ?? []).map(toApplication);
+
+  if (usePagination) {
+    const total = count ?? 0;
+    const totalPages = Math.ceil(total / pageSize);
+    return {
+      data: applications,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      hasMore: page < totalPages,
+    };
+  }
+
+  return applications;
 }
 
 export async function fetchVolunteerStatistics(
@@ -1614,11 +1686,16 @@ export async function deleteEvent(
 }
 
 export async function fetchOrganizationEvents(
-  organizationId: string
-): Promise<Event[]> {
+  organizationId: string,
+  options?: { page?: number; pageSize?: number }
+): Promise<Event[] | PaginatedResponse<Event>> {
   await ensureExpiredEventsProcessed();
 
-  const { data, error } = await supabase
+  const page = options?.page ?? 1;
+  const pageSize = options?.pageSize ?? 50;
+  const usePagination = options?.page !== undefined || options?.pageSize !== undefined;
+
+  let query = supabase
     .from("events")
     .select(
       `*,
@@ -1629,13 +1706,38 @@ export async function fetchOrganizationEvents(
           avatar_url,
           bio,
           type
-        )`
+        )`,
+      usePagination ? { count: "exact" } : undefined
     )
     .eq("organization_id", organizationId)
     .order("date", { ascending: true });
 
+  if (usePagination) {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, error, count } = await query;
+
   if (error) throw error;
-  return (data ?? []).map(toEvent);
+
+  const events = (data ?? []).map(toEvent);
+
+  if (usePagination) {
+    const total = count ?? 0;
+    const totalPages = Math.ceil(total / pageSize);
+    return {
+      data: events,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      hasMore: page < totalPages,
+    };
+  }
+
+  return events;
 }
 
 export async function fetchOrganizationPublicProfile(

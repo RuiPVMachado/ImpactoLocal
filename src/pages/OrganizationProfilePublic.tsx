@@ -103,11 +103,16 @@ const sanitizeGalleryUrls = (urls?: string[] | null): string[] => {
     .filter((url) => url.length > 0);
 };
 
+const COMPLETED_EVENTS_PREVIEW_LIMIT = 4;
+
 export default function OrganizationProfilePublic() {
   const { organizationId } = useParams<{ organizationId: string }>();
   const [data, setData] = useState<OrganizationPublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedCompletedYear, setSelectedCompletedYear] =
+    useState<string>("all");
+  const [showAllCompletedEvents, setShowAllCompletedEvents] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -156,7 +161,7 @@ export default function OrganizationProfilePublic() {
   }, [organizationId]);
 
   const organization = data?.organization ?? null;
-  const events = data?.events ?? [];
+  const events = useMemo(() => data?.events ?? [], [data?.events]);
 
   const activeEvents = useMemo(() => {
     return events
@@ -196,6 +201,59 @@ export default function OrganizationProfilePublic() {
         return secondTime - firstTime;
       });
   }, [events]);
+
+  const completedEventYears = useMemo(() => {
+    const yearSet = new Set<string>();
+
+    completedEvents.forEach((event) => {
+      const eventDate = new Date(event.date ?? "");
+      const eventTime = eventDate.getTime();
+      if (Number.isFinite(eventTime)) {
+        yearSet.add(String(eventDate.getFullYear()));
+      }
+    });
+
+    return Array.from(yearSet).sort(
+      (first, second) => Number(second) - Number(first)
+    );
+  }, [completedEvents]);
+
+  useEffect(() => {
+    setSelectedCompletedYear("all");
+    setShowAllCompletedEvents(false);
+  }, [completedEvents.length]);
+
+  const filteredCompletedEvents = useMemo(() => {
+    if (selectedCompletedYear === "all") {
+      return completedEvents;
+    }
+
+    return completedEvents.filter((event) => {
+      const eventDate = new Date(event.date ?? "");
+      const eventTime = eventDate.getTime();
+      if (!Number.isFinite(eventTime)) {
+        return false;
+      }
+
+      return String(eventDate.getFullYear()) === selectedCompletedYear;
+    });
+  }, [completedEvents, selectedCompletedYear]);
+
+  const displayedCompletedEvents = useMemo(() => {
+    if (showAllCompletedEvents) {
+      return filteredCompletedEvents;
+    }
+
+    return filteredCompletedEvents.slice(0, COMPLETED_EVENTS_PREVIEW_LIMIT);
+  }, [filteredCompletedEvents, showAllCompletedEvents]);
+
+  const hasMoreCompletedEvents =
+    filteredCompletedEvents.length > COMPLETED_EVENTS_PREVIEW_LIMIT;
+
+  const galleryItems = useMemo(
+    () => sanitizeGalleryUrls(organization?.galleryUrls),
+    [organization?.galleryUrls]
+  );
 
   if (loading) {
     return (
@@ -242,8 +300,6 @@ export default function OrganizationProfilePublic() {
     .map((word) => word.charAt(0).toUpperCase())
     .join("")
     .slice(0, 2);
-
-  const galleryItems = sanitizeGalleryUrls(organization.galleryUrls);
 
   const impactStats = organization.impactStats ?? null;
   const activeDurationLabel = getActiveDurationLabel(organization.createdAt);
@@ -563,79 +619,163 @@ export default function OrganizationProfilePublic() {
             <p className="mt-2 text-sm text-brand-neutral">
               Resultados e memórias das iniciativas já finalizadas.
             </p>
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
-              {completedEvents.map((event) => {
-                const recapGallery = sanitizeGalleryUrls(
-                  event.postEventGalleryUrls
-                );
-                const summary =
-                  (event.postEventSummary ?? "").trim() ||
-                  "Esta organização ainda não partilhou um resumo para este evento.";
-
-                return (
-                  <article
-                    key={event.id}
-                    className="flex h-full flex-col rounded-3xl border border-brand-secondary/15 bg-white p-6 shadow-soft"
-                  >
-                    <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-brand-neutral/70">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>{formatDate(event.date)}</span>
-                    </div>
-                    <h3 className="mt-2 text-xl font-semibold text-gray-900">
-                      {event.title}
-                    </h3>
-                    {event.location?.address && (
-                      <p className="mt-1 inline-flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="h-4 w-4" />
-                        {event.location.address}
-                      </p>
-                    )}
-                    <p className="mt-4 text-sm text-gray-700 leading-relaxed">
-                      {summary}
-                    </p>
-                    {recapGallery.length > 0 ? (
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        {recapGallery.map((url, index) => (
-                          <a
-                            key={`${event.id}-recap-${index}`}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group relative block overflow-hidden rounded-2xl border border-brand-secondary/10 bg-white"
-                          >
-                            <img
-                              src={url}
-                              alt={`Memória fotográfica do evento ${event.title}`}
-                              className="h-40 w-full object-cover transition duration-300 ease-out group-hover:scale-105"
-                              loading="lazy"
-                            />
-                            <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                            <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-secondary opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                              Ver maior
-                            </span>
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-4 text-xs uppercase tracking-wide text-brand-neutral/60">
-                        Sem fotografias disponíveis para este evento.
-                      </p>
-                    )}
-                    <div className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-neutral/70">
-                      <Users className="h-3 w-3" />
-                      {event.volunteersRegistered} voluntário(s) participaram
-                    </div>
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      <Link
-                        to={`/events/${event.id}`}
-                        className="inline-flex items-center justify-center rounded-2xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
+            <div className="mt-6 space-y-6">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-gray-600">
+                  {filteredCompletedEvents.length > 0
+                    ? `A mostrar ${displayedCompletedEvents.length} de ${
+                        filteredCompletedEvents.length
+                      } relatos partilhados${
+                        selectedCompletedYear !== "all"
+                          ? " em " + selectedCompletedYear
+                          : ""
+                      }.`
+                    : "Não foram encontrados eventos concluídos para o filtro selecionado."}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  {completedEventYears.length > 0 && (
+                    <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-neutral/70">
+                      Filtrar por ano
+                      <select
+                        id="public-completed-events-year"
+                        value={selectedCompletedYear}
+                        onChange={(event) =>
+                          setSelectedCompletedYear(event.target.value)
+                        }
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition hover:border-brand-secondary/30 focus:border-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-secondary/20"
                       >
-                        Ver evento
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
+                        <option value="all">Todos</option>
+                        {completedEventYears.map((year) => (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {hasMoreCompletedEvents &&
+                    filteredCompletedEvents.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowAllCompletedEvents((previous) => !previous)
+                        }
+                        className="inline-flex items-center justify-center rounded-2xl border border-brand-secondary/30 px-4 py-2 text-sm font-semibold text-brand-secondary transition hover:bg-brand-secondary/10"
+                      >
+                        {showAllCompletedEvents
+                          ? "Ver menos"
+                          : `Ver todos (${filteredCompletedEvents.length})`}
+                      </button>
+                    )}
+                </div>
+              </div>
+
+              {filteredCompletedEvents.length > 0 ? (
+                <>
+                  <div className="grid gap-6 xl:grid-cols-2">
+                    {displayedCompletedEvents.map((event) => {
+                      const recapGallery = sanitizeGalleryUrls(
+                        event.postEventGalleryUrls
+                      );
+                      const summary =
+                        (event.postEventSummary ?? "").trim() ||
+                        "Esta organização ainda não partilhou um resumo para este evento.";
+
+                      return (
+                        <article
+                          key={event.id}
+                          className="flex h-full flex-col rounded-3xl border border-brand-secondary/15 bg-white p-6 shadow-soft"
+                        >
+                          <div className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-brand-neutral/70">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{formatDate(event.date)}</span>
+                          </div>
+                          <h3 className="mt-2 text-xl font-semibold text-gray-900">
+                            {event.title}
+                          </h3>
+                          {event.location?.address && (
+                            <p className="mt-1 inline-flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin className="h-4 w-4" />
+                              {event.location.address}
+                            </p>
+                          )}
+                          <p className="mt-4 text-sm text-gray-700 leading-relaxed">
+                            {summary}
+                          </p>
+                          {recapGallery.length > 0 ? (
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              {recapGallery.map((url, index) => (
+                                <a
+                                  key={`${event.id}-recap-${index}`}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group relative block overflow-hidden rounded-2xl border border-brand-secondary/10 bg-white"
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Memória fotográfica do evento ${event.title}`}
+                                    className="h-40 w-full object-cover transition duration-300 ease-out group-hover:scale-105"
+                                    loading="lazy"
+                                  />
+                                  <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                                  <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand-secondary opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                                    Ver maior
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-4 text-xs uppercase tracking-wide text-brand-neutral/60">
+                              Sem fotografias disponíveis para este evento.
+                            </p>
+                          )}
+                          <div className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-neutral/70">
+                            <Users className="h-3 w-3" />
+                            {event.volunteersRegistered} voluntário(s)
+                            participaram
+                          </div>
+                          <div className="mt-6 flex flex-wrap gap-3">
+                            <Link
+                              to={`/events/${event.id}`}
+                              className="inline-flex items-center justify-center rounded-2xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
+                            >
+                              Ver evento
+                            </Link>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {hasMoreCompletedEvents && !showAllCompletedEvents && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCompletedEvents(true)}
+                      className="w-full rounded-2xl border border-brand-secondary/30 bg-white px-4 py-2 text-sm font-semibold text-brand-secondary transition hover:bg-brand-secondary/10"
+                    >
+                      Ver mais eventos concluídos
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-3xl border border-dashed border-brand-secondary/30 bg-white p-6 text-sm text-gray-600">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      {selectedCompletedYear === "all"
+                        ? "Não foram encontrados eventos concluídos."
+                        : `Não foram encontrados eventos concluídos em ${selectedCompletedYear}.`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCompletedYear("all")}
+                      className="inline-flex items-center justify-center rounded-2xl border border-brand-secondary/30 px-4 py-2 text-sm font-semibold text-brand-secondary transition hover:bg-brand-secondary/10"
+                    >
+                      Limpar filtro
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}

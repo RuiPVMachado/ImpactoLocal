@@ -10,10 +10,7 @@ import {
   CreditCard as Edit,
   Loader2,
   Camera,
-  Users,
   CalendarCheck,
-  Clock,
-  Heart,
   Target,
   Eye,
   BookOpen,
@@ -58,32 +55,32 @@ type GalleryUpload = {
 };
 
 const MAX_GALLERY_IMAGES = 8;
+const COMPLETED_EVENTS_PREVIEW_LIMIT = 3;
 
 const formatStatInput = (value: number | null | undefined): string =>
   typeof value === "number" && Number.isFinite(value) ? String(value) : "";
 
 const buildFormStateFromProfile = (
   profile: Profile | null
-): ProfileFormState => ({
-  name: profile?.name ?? "",
-  phone: profile?.phone ?? "",
-  city: profile?.city ?? "",
-  location: profile?.location ?? "",
-  bio: profile?.bio ?? "",
-  mission: profile?.mission ?? "",
-  vision: profile?.vision ?? "",
-  history: profile?.history ?? "",
-  statsEventsHeld: formatStatInput(profile?.impactStats?.eventsHeld),
-  statsVolunteersImpacted: formatStatInput(
-    profile?.impactStats?.volunteersImpacted
-  ),
-  statsHoursContributed: formatStatInput(
-    profile?.impactStats?.hoursContributed
-  ),
-  statsBeneficiariesServed: formatStatInput(
-    profile?.impactStats?.beneficiariesServed
-  ),
-});
+): ProfileFormState => {
+  // Safely extract impact stats with proper null handling
+  const impactStats = profile?.impactStats;
+
+  return {
+    name: profile?.name ?? "",
+    phone: profile?.phone ?? "",
+    city: profile?.city ?? "",
+    location: profile?.location ?? "",
+    bio: profile?.bio ?? "",
+    mission: profile?.mission ?? "",
+    vision: profile?.vision ?? "",
+    history: profile?.history ?? "",
+    statsEventsHeld: formatStatInput(impactStats?.eventsHeld),
+    statsVolunteersImpacted: formatStatInput(impactStats?.volunteersImpacted),
+    statsHoursContributed: formatStatInput(impactStats?.hoursContributed),
+    statsBeneficiariesServed: formatStatInput(impactStats?.beneficiariesServed),
+  };
+};
 
 export default function Profile() {
   const { user, refreshProfile } = useAuth();
@@ -114,6 +111,9 @@ export default function Profile() {
   const [completedEventsError, setCompletedEventsError] = useState<
     string | null
   >(null);
+  const [selectedCompletedYear, setSelectedCompletedYear] =
+    useState<string>("all");
+  const [showAllCompletedEvents, setShowAllCompletedEvents] = useState(false);
 
   const updateFormField = <K extends keyof ProfileFormState>(
     key: K,
@@ -167,6 +167,11 @@ export default function Profile() {
   }, [userId, userType]);
 
   useEffect(() => {
+    setShowAllCompletedEvents(false);
+    setSelectedCompletedYear("all");
+  }, [completedEvents.length]);
+
+  useEffect(() => {
     let active = true;
 
     const loadCompletedEvents = async () => {
@@ -183,10 +188,13 @@ export default function Profile() {
       setCompletedEventsError(null);
 
       try {
-        const events = await fetchOrganizationEvents(userId);
+        const result = await fetchOrganizationEvents(userId);
         if (!active) {
           return;
         }
+
+        // Handle paginated or array response
+        const events = Array.isArray(result) ? result : result.data;
 
         const completed = events.filter(
           (event) => event.status === "completed"
@@ -225,8 +233,22 @@ export default function Profile() {
   useEffect(() => {
     if (!user || isEditing) return;
 
-    setFormData(buildFormStateFromProfile(user));
+    const newFormData = buildFormStateFromProfile(user);
+    setFormData(newFormData);
     setGalleryItems(user.galleryUrls ?? []);
+
+    // Debug log to help identify stats loading issue (can be removed later)
+    if (user.type === "organization" && user.impactStats) {
+      console.log("Profile updated - Organization stats loaded:", {
+        impactStats: user.impactStats,
+        formDataStats: {
+          eventsHeld: newFormData.statsEventsHeld,
+          volunteersImpacted: newFormData.statsVolunteersImpacted,
+          hoursContributed: newFormData.statsHoursContributed,
+          beneficiariesServed: newFormData.statsBeneficiariesServed,
+        },
+      });
+    }
   }, [user, isEditing]);
 
   useEffect(() => {
@@ -260,10 +282,10 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    if (userType === "organization") {
+    if (userType === "organization" && !isEditing) {
       void refreshProfile();
     }
-  }, [refreshProfile, userType]);
+  }, [refreshProfile, userType, isEditing]);
 
   const handleStartEdit = () => {
     if (avatarObjectUrlRef.current) {
@@ -536,7 +558,7 @@ export default function Profile() {
     const parseStatInput = (value: string, label: string): number | null => {
       const normalized = value.trim();
       if (!normalized) return null;
-      const parsed = Number(normalized.replace(",", "."));
+      const parsed = Number.parseFloat(normalized.replace(",", "."));
       if (!Number.isFinite(parsed)) {
         throw new Error(`Introduza um valor numérico válido para ${label}.`);
       }
@@ -544,6 +566,7 @@ export default function Profile() {
       if (rounded < 0) {
         throw new Error(`${label} não pode ser negativo.`);
       }
+      // Allow 0 as a valid value (don't return null for 0)
       return rounded;
     };
 
@@ -643,7 +666,12 @@ export default function Profile() {
       setAvatarRemoved(false);
       setAvatarPreview(updated.avatarUrl ?? null);
 
+      // Refresh profile to update the user context with latest data including stats
       await refreshProfile();
+      // Small delay to ensure database write is complete before refreshing
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await refreshProfile();
+
       toast.success("Perfil atualizado com sucesso.");
       setIsEditing(false);
 
@@ -749,34 +777,6 @@ export default function Profile() {
     },
   ];
 
-  const organizationStatConfig = [
-    {
-      label: "Eventos realizados",
-      icon: CalendarCheck,
-      formKey: "statsEventsHeld" as const,
-      statKey: "eventsHeld" as const,
-    },
-    {
-      label: "Voluntários impactados",
-      icon: Users,
-      formKey: "statsVolunteersImpacted" as const,
-      statKey: "volunteersImpacted" as const,
-    },
-    {
-      label: "Horas de voluntariado",
-      icon: Clock,
-      formKey: "statsHoursContributed" as const,
-      statKey: "hoursContributed" as const,
-    },
-    {
-      label: "Beneficiários apoiados",
-      icon: Heart,
-      formKey: "statsBeneficiariesServed" as const,
-      statKey: "beneficiariesServed" as const,
-    },
-  ];
-
-  const organizationImpact = user?.impactStats ?? null;
   const completedEventsShowcase = useMemo(() => {
     return completedEvents.filter((event) => {
       const hasSummary =
@@ -789,10 +789,56 @@ export default function Profile() {
     });
   }, [completedEvents]);
 
-  const formatStatDisplay = (value: number | null | undefined) =>
-    typeof value === "number" && Number.isFinite(value)
-      ? value.toLocaleString("pt-PT")
-      : "—";
+  const completedEventYears = useMemo(() => {
+    const years = new Set<string>();
+    completedEventsShowcase.forEach((event) => {
+      const date = new Date(event.date);
+      if (!Number.isNaN(date.getTime())) {
+        years.add(String(date.getFullYear()));
+      }
+    });
+    return Array.from(years).sort(
+      (first, second) => Number(second) - Number(first)
+    );
+  }, [completedEventsShowcase]);
+
+  useEffect(() => {
+    if (
+      selectedCompletedYear !== "all" &&
+      !completedEventYears.includes(selectedCompletedYear)
+    ) {
+      setSelectedCompletedYear("all");
+    }
+  }, [completedEventYears, selectedCompletedYear]);
+
+  useEffect(() => {
+    setShowAllCompletedEvents(false);
+  }, [selectedCompletedYear]);
+
+  const filteredCompletedEvents = useMemo(() => {
+    if (selectedCompletedYear === "all") {
+      return completedEventsShowcase;
+    }
+    return completedEventsShowcase.filter((event) => {
+      const date = new Date(event.date);
+      if (Number.isNaN(date.getTime())) {
+        return false;
+      }
+      return String(date.getFullYear()) === selectedCompletedYear;
+    });
+  }, [completedEventsShowcase, selectedCompletedYear]);
+
+  const displayedCompletedEvents = useMemo(() => {
+    if (showAllCompletedEvents) {
+      return filteredCompletedEvents;
+    }
+    return filteredCompletedEvents.slice(0, COMPLETED_EVENTS_PREVIEW_LIMIT);
+  }, [filteredCompletedEvents, showAllCompletedEvents]);
+
+  const hasMoreCompletedEvents = useMemo(
+    () => filteredCompletedEvents.length > COMPLETED_EVENTS_PREVIEW_LIMIT,
+    [filteredCompletedEvents]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -1115,14 +1161,16 @@ export default function Profile() {
         </div>
 
         <div className="mt-8 space-y-8">
-          <div className="bg-white rounded-lg shadow-md p-8">
-            <div className="flex items-center space-x-2 mb-6">
-              <Award className="h-6 w-6 text-emerald-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Estatísticas</h2>
-            </div>
+          {isVolunteer && (
+            <div className="bg-white rounded-lg shadow-md p-8">
+              <div className="flex items-center space-x-2 mb-6">
+                <Award className="h-6 w-6 text-emerald-600" />
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Estatísticas
+                </h2>
+              </div>
 
-            {isVolunteer ? (
-              statsLoading ? (
+              {statsLoading ? (
                 <div className="space-y-6">
                   <div className="flex justify-center py-6">
                     <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
@@ -1172,71 +1220,9 @@ export default function Profile() {
                     </p>
                   )}
                 </>
-              )
-            ) : isOrganization ? (
-              <div className="space-y-6">
-                {isEditing ? (
-                  <div className="grid gap-6 md:grid-cols-2">
-                    {organizationStatConfig.map((stat) => {
-                      const Icon = stat.icon;
-                      const statValue = formData[stat.formKey];
-                      return (
-                        <div key={stat.label} className="flex flex-col gap-2">
-                          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                            <Icon className="h-4 w-4 text-emerald-600" />
-                            {stat.label}
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={statValue}
-                            onChange={(event) =>
-                              updateFormField(stat.formKey, event.target.value)
-                            }
-                            placeholder="0"
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-                    {organizationStatConfig.map((stat) => {
-                      const Icon = stat.icon;
-                      const value = organizationImpact?.[stat.statKey];
-                      return (
-                        <div
-                          key={stat.label}
-                          className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-4"
-                        >
-                          <div className="rounded-full bg-white p-3 shadow-sm">
-                            <Icon className="h-5 w-5 text-emerald-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-emerald-700">
-                              {stat.label}
-                            </p>
-                            <p className="text-2xl font-bold text-gray-900">
-                              {formatStatDisplay(value)}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <p className="text-sm text-gray-500">
-                  Estes indicadores ficam visíveis no perfil público da
-                  organização.
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-gray-600">
-                Estatísticas dinâmicas disponíveis apenas para voluntários.
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {isOrganization && (
             <div className="bg-white rounded-lg shadow-md p-8">
@@ -1256,9 +1242,55 @@ export default function Profile() {
                 <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                   {completedEventsError}
                 </div>
-              ) : completedEventsShowcase.length > 0 ? (
+              ) : filteredCompletedEvents.length > 0 ? (
                 <div className="space-y-6">
-                  {completedEventsShowcase.map((event) => {
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="text-sm text-gray-600">
+                      A mostrar {displayedCompletedEvents.length} de{" "}
+                      {filteredCompletedEvents.length} relatos partilhados
+                      {selectedCompletedYear !== "all"
+                        ? ` em ${selectedCompletedYear}`
+                        : ""}
+                      .
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {completedEventYears.length > 0 && (
+                        <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          Filtrar por ano
+                          <select
+                            id="completed-events-year"
+                            value={selectedCompletedYear}
+                            onChange={(event) =>
+                              setSelectedCompletedYear(event.target.value)
+                            }
+                            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition hover:border-emerald-200 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                          >
+                            <option value="all">Todos</option>
+                            {completedEventYears.map((year) => (
+                              <option key={year} value={year}>
+                                {year}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {hasMoreCompletedEvents && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowAllCompletedEvents((previous) => !previous)
+                          }
+                          className="inline-flex items-center justify-center rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                        >
+                          {showAllCompletedEvents
+                            ? "Ver menos"
+                            : `Ver todos (${filteredCompletedEvents.length})`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {displayedCompletedEvents.map((event) => {
                     const eventDate = new Date(event.date);
                     const hasValidDate = !Number.isNaN(eventDate.getTime());
                     const dateLabel = hasValidDate
@@ -1333,19 +1365,47 @@ export default function Profile() {
                       </div>
                     );
                   })}
+
+                  {hasMoreCompletedEvents && !showAllCompletedEvents && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCompletedEvents(true)}
+                      className="w-full rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                    >
+                      Ver mais eventos concluídos
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
-                  Assim que concluir um evento, adicione um resumo e fotografias
-                  na página de gestão de eventos para partilhar o impacto aqui
-                  no perfil público.
-                  <button
-                    type="button"
-                    onClick={() => navigate("/organization/events")}
-                    className="mt-4 inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                  >
-                    Gerir eventos
-                  </button>
+                  {selectedCompletedYear === "all" ? (
+                    <>
+                      Assim que concluir um evento, adicione um resumo e
+                      fotografias na página de gestão de eventos para partilhar
+                      o impacto aqui no perfil público.
+                      <button
+                        type="button"
+                        onClick={() => navigate("/organization/events")}
+                        className="mt-4 inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                      >
+                        Gerir eventos
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <span>
+                        Não foram encontrados eventos concluídos em{" "}
+                        {selectedCompletedYear}.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCompletedYear("all")}
+                        className="inline-flex items-center justify-center rounded-lg border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                      >
+                        Limpar filtro
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

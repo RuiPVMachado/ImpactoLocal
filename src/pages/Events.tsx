@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Filter, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import EventCard from "../components/EventCard";
-import { fetchEvents } from "../lib/api";
+import Pagination from "../components/Pagination";
+import { fetchEvents, type PaginatedResponse } from "../lib/api";
 import type { Event } from "../types";
 
 const categories = [
@@ -17,6 +18,8 @@ const categories = [
   "Desporto",
 ];
 
+const DEFAULT_PAGE_SIZE = 20;
+
 export default function Events() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
@@ -24,53 +27,69 @@ export default function Events() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pagination, setPagination] = useState<PaginatedResponse<Event> | null>(null);
+
+  const loadEvents = useCallback(async (page = currentPage, resetPagination = false) => {
+    if (resetPagination) {
+      setCurrentPage(1);
+      setPageSize(DEFAULT_PAGE_SIZE);
+      page = 1;
+    }
+
+    setLoading(true);
+    try {
+      // Use server-side search and filtering if searchTerm is provided
+      const result = await fetchEvents({
+        page,
+        pageSize,
+        category: selectedCategory !== "all" ? selectedCategory : undefined,
+        searchTerm: searchTerm.trim() || undefined,
+      });
+
+      if (Array.isArray(result)) {
+        // Legacy format - no pagination
+        setEvents(result);
+        setPagination(null);
+      } else {
+        // Paginated format
+        setEvents(result.data);
+        setPagination(result);
+        setCurrentPage(result.page);
+      }
+    } catch (error: unknown) {
+      console.error("Erro ao carregar eventos:", error);
+      toast.error("Não foi possível carregar os eventos.");
+      setEvents([]);
+      setPagination(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, selectedCategory, pageSize, currentPage]);
 
   useEffect(() => {
-    let mounted = true;
+    // Debounce search term
+    const timer = setTimeout(() => {
+      loadEvents(1, true);
+    }, 500);
 
-    const loadEvents = async () => {
-      try {
-        const data = await fetchEvents();
-        if (mounted) {
-          setEvents(data);
-        }
-      } catch (error: unknown) {
-        console.error("Erro ao carregar eventos:", error);
-        toast.error("Não foi possível carregar os eventos.");
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedCategory]);
 
-    loadEvents();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const filteredEvents = useMemo(() => {
-    return events.filter((event: Event) => {
-      const matchesCategory =
-        selectedCategory === "all" || event.category === selectedCategory;
-      const matchesSearch = searchTerm
-        ? event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          event.location.address
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase())
-        : true;
-      return matchesCategory && matchesSearch;
-    });
-  }, [events, searchTerm, selectedCategory]);
+  useEffect(() => {
+    // Load events when page changes
+    if (currentPage > 1 || !searchTerm || selectedCategory !== "all") {
+      loadEvents(currentPage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const data = await fetchEvents();
-      setEvents(data);
+      await loadEvents(currentPage);
       toast.success("Eventos atualizados");
     } catch (error: unknown) {
       console.error("Erro ao atualizar eventos:", error);
@@ -78,6 +97,17 @@ export default function Events() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1);
   };
 
   const handleEventClick = (eventId: string) => {
@@ -141,8 +171,8 @@ export default function Events() {
               </button>
               <button
                 onClick={handleRefresh}
-                disabled={refreshing}
-                className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"
+                disabled={refreshing || loading}
+                className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RefreshCw
                   className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
@@ -155,23 +185,44 @@ export default function Events() {
           </div>
         </div>
 
-        {loading ? (
+        {loading && events.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
             A carregar eventos...
           </div>
-        ) : filteredEvents.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                onClick={() => handleEventClick(event.id)}
-              />
-            ))}
-          </div>
+        ) : events.length > 0 ? (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {events.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onClick={() => handleEventClick(event.id)}
+                />
+              ))}
+            </div>
+            {pagination && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.total}
+                  pageSize={pagination.pageSize}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  showPageSizeSelector
+                  pageSizeOptions={[10, 20, 50, 100]}
+                />
+              </div>
+            )}
+          </>
         ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">Nenhum evento encontrado.</p>
+          <div className="text-center py-12 bg-white rounded-lg shadow-md">
+            <p className="text-gray-600 text-lg mb-2">Nenhum evento encontrado.</p>
+            <p className="text-gray-500 text-sm">
+              {searchTerm || selectedCategory !== "all"
+                ? "Tente ajustar os filtros de pesquisa."
+                : "Volte em breve para ver novos eventos."}
+            </p>
           </div>
         )}
       </div>

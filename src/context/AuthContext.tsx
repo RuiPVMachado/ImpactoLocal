@@ -5,6 +5,7 @@ import {
   useState,
   ReactNode,
   useCallback,
+  useRef,
 } from "react";
 import {
   AuthApiError,
@@ -44,6 +45,9 @@ interface AuthContextType {
   updatePassword: (newPassword: string) => Promise<SimpleResponse>;
   passwordResetPending: boolean;
   completePasswordReset: () => void;
+  // New additions
+  isOnline: boolean;
+  lastProfileRefresh: Date | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -79,6 +83,76 @@ type ProfileUpsertPayload = {
 const allowedRoles: UserRole[] = ["volunteer", "organization", "admin"];
 
 const PASSWORD_RESET_STORAGE_KEY = "impacto-local:passwordResetPending";
+const PROFILE_CACHE_KEY = "impacto-local:profileCache";
+const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Auto-refresh interval (15 minutes)
+const AUTO_REFRESH_INTERVAL = 15 * 60 * 1000;
+
+// Rate limit for refreshProfile (1 second between calls)
+const REFRESH_RATE_LIMIT_MS = 1000;
+
+interface CachedProfile {
+  profile: Profile;
+  timestamp: number;
+  userId: string;
+}
+
+function getCachedProfile(userId: string): Profile | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const cached = window.localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!cached) return null;
+
+    const parsed: CachedProfile = JSON.parse(cached);
+    const now = Date.now();
+
+    // Validate cache: same user, not expired, and has valid profile data
+    if (
+      parsed.userId === userId &&
+      parsed.timestamp &&
+      now - parsed.timestamp < PROFILE_CACHE_TTL &&
+      parsed.profile &&
+      parsed.profile.id === userId &&
+      parsed.profile.email &&
+      parsed.profile.name
+    ) {
+      return parsed.profile;
+    }
+
+    // Clean up expired or invalid cache
+    window.localStorage.removeItem(PROFILE_CACHE_KEY);
+    return null;
+  } catch (error) {
+    // If cache is corrupted, clear it
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(PROFILE_CACHE_KEY);
+    }
+    console.warn("Failed to read cached profile", error);
+    return null;
+  }
+}
+
+function setCachedProfile(userId: string, profile: Profile): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    const cached: CachedProfile = {
+      profile,
+      timestamp: Date.now(),
+      userId,
+    };
+    window.localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cached));
+  } catch (error) {
+    console.warn("Failed to cache profile", error);
+  }
+}
+
+function clearCachedProfile(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(PROFILE_CACHE_KEY);
+}
 
 function getInitialPasswordResetPending(): boolean {
   if (typeof window === "undefined") {
@@ -168,19 +242,71 @@ function buildProfileFromAuthUser(user: User): Profile {
   };
 }
 
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  initialDelay = 1000
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on client errors (4xx) - these are permanent failures
+      if (
+        error instanceof AuthApiError &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 429 // But retry on rate limits
+      ) {
+        throw error;
+      }
+
+      // Don't retry on last attempt
+      if (attempt === maxRetries - 1) break;
+
+      // Exponential backoff
+      const delay = initialDelay * Math.pow(2, attempt);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
 async function safeFetchProfileById(
   userId: string,
-  timeoutMs = 5000
+  timeoutMs = 5000,
+  useRetry = true
 ): Promise<Profile | null> {
   const timeoutPromise = new Promise<null>((resolve) => {
     setTimeout(() => resolve(null), timeoutMs);
   });
 
+  const fetchProfile = async (): Promise<Profile | null> => {
+    const profile = await fetchProfileById(userId);
+    if (profile) {
+      setCachedProfile(userId, profile);
+    }
+    return profile;
+  };
+
   try {
-    return await Promise.race<Profile | null>([
-      fetchProfileById(userId),
-      timeoutPromise,
-    ]);
+    if (useRetry) {
+      const result = await Promise.race<Profile | null>([
+        retryWithBackoff(fetchProfile, 2, 500),
+        timeoutPromise,
+      ]);
+      return result;
+    } else {
+      return await Promise.race<Profile | null>([
+        fetchProfile(),
+        timeoutPromise,
+      ]);
+    }
   } catch (error) {
     console.error(`Failed to fetch profile for user ${userId}`, error);
     return null;
@@ -264,7 +390,7 @@ async function syncProfileFromAuthUser(user: User): Promise<Profile | null> {
     return null;
   }
 
-  return safeFetchProfileById(user.id);
+  return safeFetchProfileById(user.id, 5000, false);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -274,6 +400,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [passwordResetPending, setPasswordResetPending] = useState<boolean>(
     () => getInitialPasswordResetPending()
   );
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [lastProfileRefresh, setLastProfileRefresh] = useState<Date | null>(
+    null
+  );
+
+  // Rate limiting for refreshProfile
+  const lastRefreshRef = useRef<number>(0);
+  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Monitor online/offline status
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const markPasswordResetPending = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -294,27 +446,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearPasswordResetPending]);
 
   const resolveProfile = useCallback(
-    async (authUser: User): Promise<Profile> => {
-      const existingProfile = await safeFetchProfileById(authUser.id);
-      if (existingProfile) {
-        return existingProfile;
-      }
-
-      const fallbackProfile = buildProfileFromAuthUser(authUser);
-
-      void (async () => {
-        const syncedProfile = await syncProfileFromAuthUser(authUser);
-        if (syncedProfile) {
-          setUser((current) =>
-            current && current.id === authUser.id ? syncedProfile : current
-          );
+    async (authUser: User, useCache = true): Promise<Profile> => {
+      try {
+        // Try cache first if enabled
+        if (useCache) {
+          const cached = getCachedProfile(authUser.id);
+          if (cached) {
+            return cached;
+          }
         }
-      })();
 
-      return fallbackProfile;
+        // Try fetching from database
+        try {
+          const existingProfile = await safeFetchProfileById(authUser.id);
+          if (existingProfile) {
+            return existingProfile;
+          }
+        } catch (fetchError) {
+          console.warn("Failed to fetch profile from database", fetchError);
+          // Continue to fallback
+        }
+
+        // Fallback to building from auth user metadata
+        const fallbackProfile = buildProfileFromAuthUser(authUser);
+
+        // Attempt to sync in background (non-blocking)
+        void (async () => {
+          try {
+            const syncedProfile = await syncProfileFromAuthUser(authUser);
+            if (syncedProfile) {
+              setUser((current) =>
+                current && current.id === authUser.id ? syncedProfile : current
+              );
+              setLastProfileRefresh(new Date());
+            }
+          } catch (syncError) {
+            console.warn("Failed to sync profile", syncError);
+          }
+        })();
+
+        return fallbackProfile;
+      } catch (error) {
+        // Ultimate fallback - always return a profile even if everything fails
+        console.error("Critical error in resolveProfile", error);
+        return buildProfileFromAuthUser(authUser);
+      }
     },
     [setUser]
   );
+
+  // Auto-refresh profile periodically
+  useEffect(() => {
+    if (!user || !isOnline) {
+      if (autoRefreshIntervalRef.current) {
+        clearInterval(autoRefreshIntervalRef.current);
+        autoRefreshIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const userId = user.id;
+    autoRefreshIntervalRef.current = setInterval(async () => {
+      try {
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+
+        if (authUser && authUser.id === userId) {
+          const profile = await resolveProfile(authUser, false); // Force fresh fetch
+          setUser((current) =>
+            current && current.id === userId ? profile : current
+          );
+          setLastProfileRefresh(new Date());
+        }
+      } catch (error) {
+        console.warn("Auto-refresh profile failed", error);
+      }
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => {
+      if (autoRefreshIntervalRef.current) {
+        clearInterval(autoRefreshIntervalRef.current);
+        autoRefreshIntervalRef.current = null;
+      }
+    };
+  }, [user, isOnline, resolveProfile]);
 
   useEffect(() => {
     let mounted = true;
@@ -326,9 +542,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } = await supabase.auth.getSession();
 
         if (session?.user) {
-          const profile = await resolveProfile(session.user);
-          if (mounted) {
-            setUser(profile);
+          try {
+            const profile = await resolveProfile(session.user);
+            if (mounted) {
+              setUser(profile);
+              setLastProfileRefresh(new Date());
+            }
+          } catch (profileError) {
+            console.error("Failed to resolve profile", profileError);
+            // Continue even if profile resolution fails
           }
         }
       } catch (error) {
@@ -349,18 +571,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === "SIGNED_IN" && session?.user) {
           clearPasswordResetPending();
           const profile = await resolveProfile(session.user);
-          setUser(profile);
+          if (mounted) {
+            setUser(profile);
+            setLastProfileRefresh(new Date());
+          }
         }
 
         if (event === "PASSWORD_RECOVERY" && session?.user) {
           markPasswordResetPending();
           const profile = await resolveProfile(session.user);
-          setUser(profile);
+          if (mounted) {
+            setUser(profile);
+            setLastProfileRefresh(new Date());
+          }
         }
 
         if (event === "SIGNED_OUT") {
           clearPasswordResetPending();
-          setUser(null);
+          clearCachedProfile();
+          if (mounted) {
+            setUser(null);
+            setLastProfileRefresh(null);
+          }
+        }
+
+        if (event === "TOKEN_REFRESHED" && session?.user) {
+          // Silently refresh profile when token is refreshed
+          void (async () => {
+            const profile = await resolveProfile(session.user, false);
+            if (mounted) {
+              setUser((current) =>
+                current && current.id === session.user.id ? profile : current
+              );
+              setLastProfileRefresh(new Date());
+            }
+          })();
         }
       }
     );
@@ -392,8 +637,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        const profile = await resolveProfile(data.user);
+        const profile = await resolveProfile(data.user, false); // Fresh fetch on login
         setUser(profile);
+        setLastProfileRefresh(new Date());
         clearPasswordResetPending();
 
         return { success: true };
@@ -466,8 +712,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
 
         if (data.user && data.session) {
-          const profile = await resolveProfile(data.user);
+          const profile = await resolveProfile(data.user, false);
           setUser(profile);
+          setLastProfileRefresh(new Date());
           clearPasswordResetPending();
         }
 
@@ -517,7 +764,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
+    clearCachedProfile();
     clearPasswordResetPending();
+    setLastProfileRefresh(null);
   }, [clearPasswordResetPending]);
 
   const resetPassword = useCallback(
@@ -565,8 +814,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
 
         if (data.user) {
-          const profile = await resolveProfile(data.user);
+          const profile = await resolveProfile(data.user, false);
           setUser(profile);
+          setLastProfileRefresh(new Date());
           clearPasswordResetPending();
         }
 
@@ -591,6 +841,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshProfile = useCallback(async () => {
+    // Rate limiting: prevent multiple rapid calls
+    const now = Date.now();
+    if (now - lastRefreshRef.current < REFRESH_RATE_LIMIT_MS) {
+      return;
+    }
+    lastRefreshRef.current = now;
+
+    // Don't refresh if offline
+    if (!isOnline) {
+      console.warn("Cannot refresh profile: offline");
+      return;
+    }
+
     try {
       const {
         data: { user: authUser },
@@ -600,12 +863,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
       if (!authUser) return;
 
-      const profile = await resolveProfile(authUser);
+      const profile = await resolveProfile(authUser, false); // Force fresh fetch
       setUser(profile);
+      setLastProfileRefresh(new Date());
     } catch (error) {
       console.error("Failed to refresh profile", error);
     }
-  }, [resolveProfile]);
+  }, [resolveProfile, isOnline]);
 
   const value = useMemo<AuthContextType>(
     () => ({
@@ -621,6 +885,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
       passwordResetPending,
       completePasswordReset,
+      isOnline,
+      lastProfileRefresh,
     }),
     [
       user,
@@ -634,6 +900,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
       passwordResetPending,
       completePasswordReset,
+      isOnline,
+      lastProfileRefresh,
     ]
   );
 

@@ -1,11 +1,25 @@
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  RefreshCw,
+  Loader2,
+  FileText,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import EventCard from "../components/EventCard";
+import Pagination from "../components/Pagination";
 import { useAuth } from "../context/useAuth";
-import { deleteEvent, fetchOrganizationEvents } from "../lib/api";
+import {
+  deleteEvent,
+  fetchOrganizationEvents,
+  type PaginatedResponse,
+} from "../lib/api";
 import type { Event } from "../types";
+
+const DEFAULT_PAGE_SIZE = 20;
 
 export default function OrganizationEvents() {
   const navigate = useNavigate();
@@ -14,38 +28,70 @@ export default function OrganizationEvents() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pagination, setPagination] = useState<PaginatedResponse<Event> | null>(
+    null
+  );
 
-  const loadEvents = useCallback(async () => {
-    if (!user) {
-      setEvents([]);
-      setLoading(false);
-      return;
-    }
+  const eventsNeedingRecap = useMemo(
+    () =>
+      events.filter((event) => {
+        if (event.status !== "completed") return false;
+        const summaryLength = (event.postEventSummary ?? "").trim().length;
+        const galleryCount = event.postEventGalleryUrls?.length ?? 0;
+        return summaryLength === 0 && galleryCount === 0;
+      }),
+    [events]
+  );
 
-    setLoading(true);
-    try {
-      const data = await fetchOrganizationEvents(user.id);
-      setEvents(data);
-    } catch (error) {
-      console.error("Erro ao carregar eventos da organização:", error);
-      toast.error(
-        "Não foi possível carregar os seus eventos. Tente novamente mais tarde."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  const loadEvents = useCallback(
+    async (page = currentPage) => {
+      if (!user) {
+        setEvents([]);
+        setPagination(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const result = await fetchOrganizationEvents(user.id, {
+          page,
+          pageSize,
+        });
+
+        if (Array.isArray(result)) {
+          setEvents(result);
+          setPagination(null);
+        } else {
+          setEvents(result.data);
+          setPagination(result);
+          setCurrentPage(result.page);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar eventos da organização:", error);
+        toast.error(
+          "Não foi possível carregar os seus eventos. Tente novamente mais tarde."
+        );
+        setEvents([]);
+        setPagination(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, currentPage, pageSize]
+  );
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    loadEvents(currentPage);
+  }, [loadEvents, currentPage]);
 
   const handleRefresh = async () => {
     if (!user) return;
     setRefreshing(true);
     try {
-      const data = await fetchOrganizationEvents(user.id);
-      setEvents(data);
+      await loadEvents(currentPage);
       toast.success("Eventos atualizados");
     } catch (error) {
       console.error("Erro ao atualizar eventos:", error);
@@ -53,6 +99,16 @@ export default function OrganizationEvents() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1);
   };
 
   const handleDelete = async (eventId: string) => {
@@ -112,7 +168,32 @@ export default function OrganizationEvents() {
             </button>
           </div>
         </div>
-        {loading ? (
+        {eventsNeedingRecap.length > 0 && (
+          <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                Tem {eventsNeedingRecap.length} evento(s) concluído(s) sem
+                relato partilhado.
+              </p>
+              <p className="text-xs text-amber-700">
+                Use o novo formulário rápido para registar como correu cada
+                iniciativa.
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                navigate(
+                  `/organization/events/${eventsNeedingRecap[0].id}/recap`
+                )
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700"
+            >
+              <FileText className="h-4 w-4" />
+              Partilhar primeiro relato
+            </button>
+          </div>
+        )}
+        {loading && events.length === 0 ? (
           <div className="flex h-64 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm">
             <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
             <span className="ml-3 text-sm font-medium text-gray-500">
@@ -120,37 +201,77 @@ export default function OrganizationEvents() {
             </span>
           </div>
         ) : events.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
-              <div key={event.id} className="relative">
-                {event.status === "completed" &&
-                  (event.postEventSummary ?? "").trim().length === 0 &&
-                  (event.postEventGalleryUrls?.length ?? 0) === 0 && (
-                    <span className="absolute left-4 top-4 z-10 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 shadow">
-                      Partilhe o relato
-                    </span>
-                  )}
-                <EventCard event={event} showApplyButton={false} />
-                <div className="absolute top-4 right-4 flex space-x-2">
-                  <button
-                    onClick={() =>
-                      navigate(`/organization/events/${event.id}/edit`)
-                    }
-                    className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100 transition"
-                  >
-                    <Pencil className="h-4 w-4 text-emerald-600" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(event.id)}
-                    disabled={deletingId === event.id}
-                    className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100 transition disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Trash2 className="h-4 w-4 text-red-600" />
-                  </button>
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {events.map((event) => (
+                <div key={event.id} className="relative">
+                  {event.status === "completed" &&
+                    (event.postEventSummary ?? "").trim().length === 0 &&
+                    (event.postEventGalleryUrls?.length ?? 0) === 0 && (
+                      <button
+                        type="button"
+                        onClick={(click) => {
+                          click.stopPropagation();
+                          navigate(`/organization/events/${event.id}/recap`);
+                        }}
+                        className="absolute left-4 top-4 z-10 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 shadow transition hover:bg-amber-200"
+                      >
+                        Partilhe o relato
+                      </button>
+                    )}
+                  <EventCard event={event} showApplyButton={false} />
+                  <div className="absolute top-4 right-4 flex space-x-2">
+                    {event.status === "completed" && (
+                      <button
+                        type="button"
+                        onClick={(click) => {
+                          click.stopPropagation();
+                          navigate(`/organization/events/${event.id}/recap`);
+                        }}
+                        className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100 transition"
+                        aria-label={
+                          (event.postEventSummary ?? "").trim().length > 0
+                            ? "Atualizar relato do evento"
+                            : "Partilhar relato do evento"
+                        }
+                      >
+                        <FileText className="h-4 w-4 text-amber-600" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() =>
+                        navigate(`/organization/events/${event.id}/edit`)
+                      }
+                      className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100 transition"
+                    >
+                      <Pencil className="h-4 w-4 text-emerald-600" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      disabled={deletingId === event.id}
+                      className="bg-white p-2 rounded-full shadow-md hover:bg-gray-100 transition disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </button>
+                  </div>
                 </div>
+              ))}
+            </div>
+            {pagination && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.total}
+                  pageSize={pagination.pageSize}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  showPageSizeSelector
+                  pageSizeOptions={[10, 20, 50, 100]}
+                />
               </div>
-            ))}
-          </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12 bg-white rounded-lg shadow-md">
             <p className="text-gray-600 text-lg mb-4">
