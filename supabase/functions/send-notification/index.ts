@@ -185,7 +185,7 @@ const persistApplicationSubmittedNotification = async (
       title: "Nova candidatura recebida",
       message: summaryMessage,
       status: "pending",
-      link: payload.eventId ? `/events/${payload.eventId}` : null,
+      link: "/organization/dashboard",
     });
   } catch (error) {
     console.error("Failed to persist in-app notification", error);

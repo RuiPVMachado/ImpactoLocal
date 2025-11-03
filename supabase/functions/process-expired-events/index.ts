@@ -365,7 +365,7 @@ serve(async (req: Request): Promise<Response> => {
     message: `O evento "${
       event.title ?? "Sem título"
     }" terminou. Adicione fotografias e um resumo ao seu perfil.`,
-    link: `/organization/events/${event.id}/edit`,
+    link: `/organization/events/${event.id}/recap`,
     created_at: nowIso,
   }));
 

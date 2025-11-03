@@ -25,6 +25,28 @@ import type {
   VolunteerApplication,
 } from "../types";
 
+const hasEventEnded = (
+  application: VolunteerApplication,
+  referenceTime: number
+): boolean => {
+  const event = application.event;
+  if (!event) return false;
+  if (event.status === "completed") return true;
+
+  const eventTime = new Date(event.date).getTime();
+  if (Number.isNaN(eventTime)) return false;
+
+  return eventTime < referenceTime;
+};
+
+const filterActivePendingApplications = (
+  applications: VolunteerApplication[],
+  referenceTime: number
+) =>
+  applications.filter(
+    (application) => !hasEventEnded(application, referenceTime)
+  );
+
 const formatDateTime = (iso?: string | null) => {
   if (!iso) return "Data por confirmar";
   const date = new Date(iso);
@@ -115,6 +137,54 @@ export default function OrganizationDashboard() {
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<
     string | null
   >(null);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const activePendingApplications = useMemo(
+    () => filterActivePendingApplications(pendingApplications, currentTime),
+    [pendingApplications, currentTime]
+  );
+
+  const displayApplicationStats = useMemo(() => {
+    if (!applicationStats) return null;
+    return {
+      ...applicationStats,
+      pending: activePendingApplications.length,
+    } satisfies ApplicationStats;
+  }, [applicationStats, activePendingApplications.length]);
+
+  const displayApplicationsByEvent = useMemo(() => {
+    const pendingByEvent = activePendingApplications.reduce<
+      Record<string, number>
+    >((acc, application) => {
+      if (!application.eventId) return acc;
+      acc[application.eventId] = (acc[application.eventId] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(applicationsByEvent).reduce<
+      Record<string, ApplicationStats>
+    >((acc, [eventId, stats]) => {
+      acc[eventId] = {
+        ...stats,
+        pending: pendingByEvent[eventId] ?? 0,
+      };
+      return acc;
+    }, {});
+  }, [applicationsByEvent, activePendingApplications]);
 
   const statCards: StatCard[] = useMemo(
     () => [
@@ -136,7 +206,7 @@ export default function OrganizationDashboard() {
       },
       {
         label: "Candidaturas Pendentes",
-        value: summary?.pendingApplications ?? 0,
+        value: activePendingApplications.length,
         icon: Clock,
         bgClass: "bg-amber-100",
         iconClass: "text-amber-600",
@@ -151,12 +221,12 @@ export default function OrganizationDashboard() {
         valueClass: "text-cyan-600",
       },
     ],
-    [summary]
+    [summary, activePendingApplications.length]
   );
 
   const statusSummary: StatusSummaryItem[] = useMemo(
-    () => buildStatusSummary(applicationStats),
-    [applicationStats]
+    () => buildStatusSummary(displayApplicationStats ?? undefined),
+    [displayApplicationStats]
   );
 
   const loadDashboard = useCallback(async () => {
@@ -180,7 +250,18 @@ export default function OrganizationDashboard() {
         applicationsByEvent: byEvent,
       } = await fetchOrganizationDashboard(user.id);
 
-      setSummary(summaryData);
+      const nowTimestamp = Date.now();
+      const activePending = filterActivePendingApplications(
+        pending,
+        nowTimestamp
+      );
+
+      setCurrentTime(nowTimestamp);
+
+      setSummary({
+        ...summaryData,
+        pendingApplications: activePending.length,
+      });
       setUpcomingEvents(upcoming);
       setPendingApplications(pending);
       setApplicationStats(stats);
@@ -316,14 +397,14 @@ export default function OrganizationDashboard() {
                   <h2 className="text-2xl font-bold text-gray-900">
                     Candidaturas Pendentes
                   </h2>
-                  {applicationStats && (
+                  {displayApplicationStats && (
                     <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
-                      {applicationStats.pending} pendentes
+                      {displayApplicationStats.pending} pendentes
                     </span>
                   )}
                 </div>
 
-                {pendingApplications.length === 0 ? (
+                {activePendingApplications.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
                     <p className="text-sm text-gray-600">
                       Sem candidaturas pendentes no momento.
@@ -331,7 +412,7 @@ export default function OrganizationDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {pendingApplications.map((application) => (
+                    {activePendingApplications.map((application) => (
                       <div
                         key={application.id}
                         className="flex flex-col gap-4 rounded-xl border border-gray-200 p-4 hover:bg-gray-50 transition md:flex-row md:items-center md:justify-between"
@@ -444,7 +525,7 @@ export default function OrganizationDashboard() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   Próximos Eventos
                 </h2>
-                {applicationStats && (
+                {displayApplicationStats && (
                   <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {statusSummary.map((item) => (
                       <div
@@ -468,7 +549,7 @@ export default function OrganizationDashboard() {
                 ) : (
                   <div className="space-y-4">
                     {upcomingEvents.map((event) => {
-                      const eventStats = applicationsByEvent[event.id];
+                      const eventStats = displayApplicationsByEvent[event.id];
                       const hasApplications =
                         !!eventStats &&
                         Object.values(eventStats).some((value) => value > 0);

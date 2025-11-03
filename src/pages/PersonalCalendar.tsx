@@ -96,7 +96,8 @@ export default function PersonalCalendar() {
         setLoading(true);
         const data = await fetchApplicationsByVolunteer(user.id);
         if (active) {
-          setApplications(data);
+          const applicationsList = Array.isArray(data) ? data : data.data;
+          setApplications(applicationsList);
         }
       } catch (error) {
         console.error("Erro ao carregar candidaturas aprovadas", error);

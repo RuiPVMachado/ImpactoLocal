@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FileText } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -24,16 +25,27 @@ import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 import NotificationBell from "./NotificationBell";
 
+const DEFAULT_MOBILE_MENU_TRANSITION_MS = 260;
+const SCROLL_MOBILE_MENU_TRANSITION_MS = 480;
+
 export default function Navbar() {
   const { user, logout, isAuthenticated, passwordResetPending } = useAuth();
   const navigate = useNavigate();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileMenuState, setMobileMenuState] = useState<
+    "closed" | "closing" | "open"
+  >("closed");
+  const [mobileMenuTransitionMs, setMobileMenuTransitionMs] = useState(
+    DEFAULT_MOBILE_MENU_TRANSITION_MS
+  );
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
-  const [isHamburgerVisible, setIsHamburgerVisible] = useState(true);
+  const mobileMenuCloseTimeoutRef = useRef<number | null>(null);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const lastScrollYRef = useRef(0);
+
+  const isMobileMenuVisible = mobileMenuState !== "closed";
+  const isMobileMenuInteractive = mobileMenuState === "open";
 
   const primaryLinks = [
     { to: "/events", label: "Eventos", icon: Calendar },
@@ -52,16 +64,8 @@ export default function Navbar() {
 
   if (user?.type === "volunteer") {
     accountLinks.push(
-      {
-        to: "/my-applications",
-        label: "Minhas Candidaturas",
-        icon: FileText,
-      },
-      {
-        to: "/calendar",
-        label: "Calendário",
-        icon: CalendarCheck,
-      },
+      { to: "/my-applications", label: "Minhas Candidaturas", icon: FileText },
+      { to: "/calendar", label: "Calendário", icon: CalendarCheck },
       { to: "/profile", label: "Perfil", icon: User }
     );
   }
@@ -118,8 +122,68 @@ export default function Navbar() {
     };
   }, [isAccountMenuOpen]);
 
-  const closeMenus = () => {
-    setIsMobileMenuOpen(false);
+  const closeMobileMenu = useCallback(
+    (options?: { animated?: boolean; withSlowAnimation?: boolean }) => {
+      const animated = options?.animated ?? true;
+      const transitionDuration = options?.withSlowAnimation
+        ? SCROLL_MOBILE_MENU_TRANSITION_MS
+        : DEFAULT_MOBILE_MENU_TRANSITION_MS;
+
+      setMobileMenuTransitionMs(transitionDuration);
+
+      if (!animated) {
+        if (mobileMenuCloseTimeoutRef.current !== null) {
+          window.clearTimeout(mobileMenuCloseTimeoutRef.current);
+          mobileMenuCloseTimeoutRef.current = null;
+        }
+        setMobileMenuState("closed");
+        return;
+      }
+
+      setMobileMenuState((current) => {
+        if (current !== "open") {
+          return current;
+        }
+
+        if (mobileMenuCloseTimeoutRef.current !== null) {
+          window.clearTimeout(mobileMenuCloseTimeoutRef.current);
+        }
+
+        mobileMenuCloseTimeoutRef.current = window.setTimeout(() => {
+          setMobileMenuState("closed");
+          mobileMenuCloseTimeoutRef.current = null;
+        }, transitionDuration);
+
+        return "closing";
+      });
+    },
+    []
+  );
+
+  const openMobileMenu = useCallback(() => {
+    if (mobileMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(mobileMenuCloseTimeoutRef.current);
+      mobileMenuCloseTimeoutRef.current = null;
+    }
+
+    setMobileMenuTransitionMs(DEFAULT_MOBILE_MENU_TRANSITION_MS);
+    setMobileMenuState("open");
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (mobileMenuCloseTimeoutRef.current !== null) {
+        window.clearTimeout(mobileMenuCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const closeMenus = (options?: { animateMobile?: boolean }) => {
+    if (options?.animateMobile) {
+      closeMobileMenu();
+    } else {
+      closeMobileMenu({ animated: false });
+    }
     setIsMoreMenuOpen(false);
     setIsAccountMenuOpen(false);
   };
@@ -150,27 +214,17 @@ export default function Navbar() {
 
     const handleScroll = () => {
       if (window.innerWidth >= 1024) {
-        setIsHamburgerVisible(true);
+        closeMobileMenu({ animated: false });
         updateScrollReference();
         return;
       }
 
       const currentScrollY = window.scrollY;
-
-      if (currentScrollY <= 0) {
-        setIsHamburgerVisible(true);
-        lastScrollYRef.current = 0;
-        return;
-      }
-
       const previousScrollY = lastScrollYRef.current;
-      const isScrollingDown = currentScrollY > previousScrollY + 4;
-      const isScrollingUp = currentScrollY < previousScrollY - 4;
+      const hasScrolled = Math.abs(currentScrollY - previousScrollY) > 6;
 
-      if (isScrollingDown) {
-        setIsHamburgerVisible(false);
-      } else if (isScrollingUp) {
-        setIsHamburgerVisible(true);
+      if (mobileMenuState === "open" && hasScrolled) {
+        closeMobileMenu({ withSlowAnimation: true });
       }
 
       lastScrollYRef.current = currentScrollY;
@@ -178,7 +232,7 @@ export default function Navbar() {
 
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
-        setIsHamburgerVisible(true);
+        closeMobileMenu({ animated: false });
       }
       updateScrollReference();
     };
@@ -191,7 +245,7 @@ export default function Navbar() {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [closeMobileMenu, mobileMenuState]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -199,14 +253,37 @@ export default function Navbar() {
     }
 
     lastScrollYRef.current = window.scrollY;
-  }, [isMobileMenuOpen]);
+  }, [mobileMenuState]);
+
+  const mobileMenuAnimationStyles = useMemo<CSSProperties>(() => {
+    const isOpen = mobileMenuState === "open";
+    return {
+      maxHeight: isOpen ? "1200px" : "0px",
+      opacity: isOpen ? 1 : 0,
+      pointerEvents: isOpen ? "auto" : "none",
+      transform: isOpen ? "translateY(0)" : "translateY(-12px)",
+      transitionDuration: `${mobileMenuTransitionMs}ms`,
+      transitionProperty: "max-height, opacity, transform",
+    };
+  }, [mobileMenuState, mobileMenuTransitionMs]);
+
+  const handleMobileMenuToggle = useCallback(() => {
+    setIsMoreMenuOpen(false);
+    setIsAccountMenuOpen(false);
+
+    if (mobileMenuState === "open") {
+      closeMobileMenu();
+    } else {
+      openMobileMenu();
+    }
+  }, [closeMobileMenu, mobileMenuState, openMobileMenu]);
 
   const accountButtonLabel = user?.name?.split(" ")[0] ?? "Conta";
 
   return (
     <nav className="bg-brand-background/95 sticky top-0 z-50 border-b border-brand-surfaceAlt/70 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-6">
             <Link
               to="/"
@@ -222,7 +299,7 @@ export default function Navbar() {
               </span>
             </Link>
 
-            <div className="hidden lg:flex items-center gap-2 text-sm font-semibold text-brand-neutral">
+            <div className="hidden items-center gap-2 text-sm font-semibold text-brand-neutral lg:flex">
               {primaryLinks.map((link) => (
                 <Link
                   key={link.to}
@@ -268,7 +345,7 @@ export default function Navbar() {
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-4 text-sm font-medium text-brand-neutral">
+          <div className="hidden items-center gap-4 text-sm font-medium text-brand-neutral lg:flex">
             {passwordResetPending ? (
               <>
                 <div className="flex items-center gap-2 rounded-button bg-amber-100 px-4 py-2 text-amber-800">
@@ -339,7 +416,7 @@ export default function Navbar() {
                 </Link>
                 <Link
                   to="/register"
-                  className="bg-brand-primary text-white px-5 py-2 rounded-button font-semibold transition hover:bg-brand-primaryHover"
+                  className="rounded-button bg-brand-primary px-5 py-2 font-semibold text-white transition hover:bg-brand-primaryHover"
                 >
                   Registar
                 </Link>
@@ -349,21 +426,13 @@ export default function Navbar() {
 
           <button
             type="button"
-            className={`lg:hidden rounded-button border border-brand-secondary/20 bg-white/80 p-2 text-brand-neutral shadow-soft transition hover:border-brand-secondary/40 hover:text-brand-secondary duration-200 ${
-              !isHamburgerVisible
-                ? "pointer-events-none opacity-0"
-                : "opacity-100"
-            }`}
-            onClick={() => {
-              setIsMobileMenuOpen((current) => !current);
-              setIsHamburgerVisible(true);
-              setIsMoreMenuOpen(false);
-              setIsAccountMenuOpen(false);
-            }}
-            aria-label="Abrir menu"
-            aria-expanded={isMobileMenuOpen}
+            className="rounded-button border border-brand-secondary/20 bg-white/80 p-2 text-brand-neutral shadow-soft transition duration-200 hover:border-brand-secondary/40 hover:text-brand-secondary lg:hidden"
+            onClick={handleMobileMenuToggle}
+            aria-controls="mobile-navigation"
+            aria-label={isMobileMenuInteractive ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={isMobileMenuInteractive}
           >
-            {isMobileMenuOpen ? (
+            {isMobileMenuInteractive ? (
               <X className="h-5 w-5" />
             ) : (
               <Menu className="h-5 w-5" />
@@ -371,121 +440,128 @@ export default function Navbar() {
           </button>
         </div>
 
-        {isMobileMenuOpen && (
-          <div className="lg:hidden border-t border-brand-secondary/20 py-6">
-            <div className="flex flex-col gap-6">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-brand-neutral/60">
-                  Explorar
-                </p>
-                <div className="mt-3 flex flex-col gap-2">
-                  {primaryLinks.map((link) => (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      onClick={closeMenus}
-                      className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 text-sm font-semibold text-gray-900 shadow-soft transition hover:border-brand-secondary/30"
-                    >
-                      <span className="flex items-center gap-3">
-                        <link.icon className="h-5 w-5 text-brand-secondary" />
-                        {link.label}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-brand-neutral/60">
-                  Comunidade
-                </p>
-                <div className="mt-3 flex flex-col gap-2">
-                  {communityLinks.map((link) => (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      onClick={closeMenus}
-                      className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 text-sm font-semibold text-gray-900 shadow-soft transition hover:border-brand-secondary/30"
-                    >
-                      <span className="flex items-center gap-3">
-                        <link.icon className="h-5 w-5 text-brand-secondary" />
-                        {link.label}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {passwordResetPending ? (
-                <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-semibold text-amber-800">
-                  <div className="flex items-center gap-2">
-                    <Lock className="h-4 w-4" />
-                    <span>Atualize a password para continuar</span>
+        {isMobileMenuVisible && (
+          <div
+            id="mobile-navigation"
+            className="lg:hidden overflow-hidden transition-[max-height,opacity,transform]"
+            style={mobileMenuAnimationStyles}
+            aria-hidden={!isMobileMenuInteractive}
+          >
+            <div className="mt-4 rounded-3xl border border-brand-secondary/15 bg-white/95 px-4 py-6 shadow-soft backdrop-blur">
+              <div className="flex flex-col gap-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-brand-neutral/60">
+                    Explorar
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {primaryLinks.map((link) => (
+                      <Link
+                        key={link.to}
+                        to={link.to}
+                        onClick={closeMenus}
+                        className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 text-sm font-semibold text-gray-900 shadow-soft transition hover:border-brand-secondary/30"
+                      >
+                        <span className="flex items-center gap-3">
+                          <link.icon className="h-5 w-5 text-brand-secondary" />
+                          {link.label}
+                        </span>
+                      </Link>
+                    ))}
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="rounded-button px-3 py-2 font-semibold text-amber-900 underline"
-                  >
-                    Sair
-                  </button>
                 </div>
-              ) : (
-                <div className="flex flex-wrap gap-3">
-                  {isAuthenticated ? (
-                    <>
-                      <div className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 shadow-soft">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            Notificações
-                          </p>
-                          <p className="text-xs text-brand-neutral/70">
-                            Veja novidades e alertas
-                          </p>
+
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-brand-neutral/60">
+                    Comunidade
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {communityLinks.map((link) => (
+                      <Link
+                        key={link.to}
+                        to={link.to}
+                        onClick={closeMenus}
+                        className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 text-sm font-semibold text-gray-900 shadow-soft transition hover:border-brand-secondary/30"
+                      >
+                        <span className="flex items-center gap-3">
+                          <link.icon className="h-5 w-5 text-brand-secondary" />
+                          {link.label}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+
+                {passwordResetPending ? (
+                  <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-semibold text-amber-800">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      <span>Atualize a password para continuar</span>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="rounded-button px-3 py-2 font-semibold text-amber-900 underline"
+                    >
+                      Sair
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {isAuthenticated ? (
+                      <>
+                        <div className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 shadow-soft">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              Notificações
+                            </p>
+                            <p className="text-xs text-brand-neutral/70">
+                              Veja novidades e alertas
+                            </p>
+                          </div>
+                          <NotificationBell />
                         </div>
-                        <NotificationBell />
-                      </div>
 
-                      {accountLinks.map((link) => (
-                        <Link
-                          key={link.to}
-                          to={link.to}
-                          onClick={closeMenus}
-                          className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 text-sm font-semibold text-gray-900 shadow-soft transition hover:border-brand-secondary/30"
+                        {accountLinks.map((link) => (
+                          <Link
+                            key={link.to}
+                            to={link.to}
+                            onClick={closeMenus}
+                            className="flex items-center justify-between rounded-2xl border border-brand-secondary/15 bg-white/90 px-4 py-3 text-sm font-semibold text-gray-900 shadow-soft transition hover:border-brand-secondary/30"
+                          >
+                            <span className="flex items-center gap-3">
+                              <link.icon className="h-5 w-5 text-brand-secondary" />
+                              {link.label}
+                            </span>
+                          </Link>
+                        ))}
+
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center justify-center rounded-2xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
                         >
-                          <span className="flex items-center gap-3">
-                            <link.icon className="h-5 w-5 text-brand-secondary" />
-                            {link.label}
-                          </span>
+                          Terminar Sessão
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          to="/login"
+                          onClick={closeMenus}
+                          className="flex flex-1 items-center justify-center rounded-2xl border border-brand-secondary/20 bg-white/90 px-4 py-3 text-sm font-semibold text-brand-secondary transition hover:border-brand-secondary/40"
+                        >
+                          Entrar
                         </Link>
-                      ))}
-
-                      <button
-                        onClick={handleLogout}
-                        className="flex items-center justify-center rounded-2xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
-                      >
-                        Terminar Sessão
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        to="/login"
-                        onClick={closeMenus}
-                        className="flex flex-1 items-center justify-center rounded-2xl border border-brand-secondary/20 bg-white/90 px-4 py-3 text-sm font-semibold text-brand-secondary transition hover:border-brand-secondary/40"
-                      >
-                        Entrar
-                      </Link>
-                      <Link
-                        to="/register"
-                        onClick={closeMenus}
-                        className="flex flex-1 items-center justify-center rounded-2xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
-                      >
-                        Criar Conta Gratuita
-                      </Link>
-                    </>
-                  )}
-                </div>
-              )}
+                        <Link
+                          to="/register"
+                          onClick={closeMenus}
+                          className="flex flex-1 items-center justify-center rounded-2xl bg-brand-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-primaryHover"
+                        >
+                          Criar Conta Gratuita
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

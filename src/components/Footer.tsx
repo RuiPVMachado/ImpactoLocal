@@ -10,10 +10,16 @@ import {
 
 export default function Footer() {
   return (
-    <footer className="bg-brand-secondary text-white">
-      <div className="max-w-6xl mx-auto px-4 py-16">
-        <div className="grid gap-10 md:grid-cols-3">
-          <div>
+    <footer
+      className="bg-brand-secondary text-white"
+      aria-labelledby="footer-heading"
+    >
+      <h2 id="footer-heading" className="sr-only">
+        Ligações e contactos ImpactoLocal
+      </h2>
+      <div className="max-w-6xl mx-auto px-4 py-10 sm:py-14 lg:py-16">
+        <div className="grid gap-8 sm:gap-10 md:grid-cols-3">
+          <div className="hidden md:block">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/70">
               Links Rápidos
             </h3>
@@ -61,7 +67,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div>
+          <div className="hidden md:block">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/70">
               Recursos
             </h3>
@@ -101,26 +107,28 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div>
+          <div className="border-t border-white/10 pt-8 md:border-t-0 md:pt-0">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/70">
               Contacto
             </h3>
             <ul className="space-y-4 text-sm">
-              <li className="flex items-center gap-3 text-white/80">
+              <li className="flex items-start gap-3 text-white/80">
                 <Mail className="h-4 w-4 text-brand-primary" />
-                <span>contacto@impactolocal.pt</span>
+                <span className="leading-relaxed">
+                  contacto@impactolocal.pt
+                </span>
               </li>
-              <li className="flex items-center gap-3 text-white/80">
+              <li className="flex items-start gap-3 text-white/80">
                 <Phone className="h-4 w-4 text-brand-primary" />
-                <span>+351 123 456 789</span>
+                <span className="leading-relaxed">+351 123 456 789</span>
               </li>
-              <li className="flex items-center gap-3 text-white/80">
+              <li className="flex items-start gap-3 text-white/80">
                 <MapPin className="h-4 w-4 text-brand-primary" />
-                <span>Lisboa, Portugal</span>
+                <span className="leading-relaxed">Lisboa, Portugal</span>
               </li>
             </ul>
 
-            <div className="mt-6 flex gap-3 text-white/60">
+            <div className="mt-6 flex flex-wrap gap-3 text-white/60">
               <a
                 href="#"
                 aria-label="ImpactoLocal no Facebook"
@@ -146,13 +154,13 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 border-t border-white/10 pt-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm text-white/70">
+        <div className="mt-8 border-t border-white/10 pt-6 sm:mt-12 sm:pt-8">
+          <div className="flex flex-col gap-4 text-center text-sm text-white/70 sm:text-left md:flex-row md:items-center md:justify-between">
+            <p>
               &copy; {new Date().getFullYear()} ImpactoLocal. Todos os direitos
               reservados.
             </p>
-            <div className="flex flex-wrap gap-4 text-sm text-white/70">
+            <div className="flex flex-wrap justify-center gap-4 md:justify-end">
               <Link
                 to="/politica-de-privacidade"
                 className="transition hover:text-brand-primary"

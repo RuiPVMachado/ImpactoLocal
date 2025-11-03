@@ -126,7 +126,8 @@ const MapExplorer = () => {
         if (!isMounted) {
           return;
         }
-        setEvents(data);
+        const eventsList = Array.isArray(data) ? data : data.data;
+        setEvents(eventsList);
       } catch (error) {
         console.error("Falha ao carregar eventos", error);
         if (isMounted) {

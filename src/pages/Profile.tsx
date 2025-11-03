@@ -841,32 +841,32 @@ export default function Profile() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 px-4 py-8 sm:py-10">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="h-32 bg-gradient-to-r from-emerald-500 to-teal-600"></div>
+          <div className="h-24 bg-gradient-to-r from-emerald-500 to-teal-600 sm:h-32"></div>
 
-          <div className="px-6 pb-8 pt-10 sm:px-8">
-            <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between mb-6">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="relative -mt-12 sm:-mt-16 md:-mt-20">
-                  <div className="bg-white p-2 rounded-full shadow-md">
+          <div className="px-4 pb-6 pt-12 sm:px-8 sm:pb-8 sm:pt-10">
+            <div className="mb-6 flex flex-col items-center gap-6 text-center md:flex-row md:items-end md:justify-between md:text-left">
+              <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
+                <div className="relative -mt-16 sm:-mt-18 md:-mt-20">
+                  <div className="mx-auto rounded-full bg-white p-1.5 shadow-md sm:mx-0 sm:p-2">
                     {avatarPreview ? (
                       <img
                         src={avatarPreview}
                         alt="Foto de perfil"
                         loading="lazy"
                         decoding="async"
-                        className="h-32 w-32 rounded-full object-cover"
+                        className="h-24 w-24 rounded-full object-cover sm:h-28 sm:w-28 md:h-32 md:w-32"
                       />
                     ) : (
-                      <div className="bg-emerald-100 h-32 w-32 rounded-full flex items-center justify-center">
-                        <User className="h-16 w-16 text-emerald-600" />
+                      <div className="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-100 sm:h-28 sm:w-28 md:h-32 md:w-32">
+                        <User className="h-14 w-14 text-emerald-600 sm:h-16 sm:w-16" />
                       </div>
                     )}
                   </div>
                   {isEditing && (
-                    <label className="absolute bottom-0 right-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg ring-4 ring-white transition hover:bg-emerald-700">
+                    <label className="absolute -bottom-2 -right-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg ring-4 ring-white transition hover:bg-emerald-700 sm:-bottom-1 sm:-right-1">
                       <Camera className="h-5 w-5" />
                       <input
                         type="file"
@@ -877,7 +877,7 @@ export default function Profile() {
                     </label>
                   )}
                 </div>
-                <div className="space-y-2 pt-4 sm:pt-0">
+                <div className="space-y-2 pt-4 text-center sm:pt-0 sm:text-left">
                   <h2 className="text-xl font-semibold text-gray-900">
                     {formData.name || "Perfil"}
                   </h2>
@@ -914,26 +914,26 @@ export default function Profile() {
               {!isEditing ? (
                 <button
                   onClick={handleStartEdit}
-                  className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700"
                 >
                   <Edit className="h-4 w-4" />
                   <span>Editar Perfil</span>
                 </button>
               ) : (
-                <div className="space-x-2">
+                <div className="flex flex-wrap justify-center gap-3 md:justify-end">
                   <button
                     onClick={handleCancelEdit}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                    className="rounded-lg border border-gray-300 px-4 py-2 transition hover:bg-gray-50"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? (
-                      <span className="flex items-center space-x-2">
+                      <span className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>A guardar...</span>
                       </span>
