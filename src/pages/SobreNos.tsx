@@ -6,7 +6,7 @@ export default function SobreNos() {
       <section className="py-16 px-4 bg-brand-secondary text-white">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-6">Sobre Nós</h1>
-          <p className="text-xl text-white/90">
+          <p className="text-xl text-white">
             Conectamos pessoas que querem fazer a diferença com causas que
             precisam de ajuda
           </p>

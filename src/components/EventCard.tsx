@@ -70,13 +70,13 @@ export default function EventCard({
 
       <div className="p-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="bg-brand-secondary/10 text-brand-secondary text-xs px-3 py-1 rounded-full font-semibold">
+          <span className="bg-brand-secondary text-white text-xs px-3 py-1 rounded-full font-semibold">
             {event.category}
           </span>
           <span
             className={`text-xs px-3 py-1 rounded-full font-semibold ${
               event.status === "open"
-                ? "bg-brand-primary/15 text-brand-primary"
+                ? "bg-brand-primary text-white"
                 : event.status === "closed"
                 ? "bg-rose-100 text-rose-700"
                 : "bg-gray-100 text-gray-800"
@@ -118,7 +118,7 @@ export default function EventCard({
             <div>
               <span className="block">{timeDisplay}</span>
               {durationLabel && (
-                <span className="block text-xs text-brand-neutral/80">
+                <span className="block text-xs text-brand-neutral">
                   Duração: {durationLabel}
                 </span>
               )}

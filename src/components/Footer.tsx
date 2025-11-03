@@ -20,14 +20,14 @@ export default function Footer() {
       <div className="max-w-6xl mx-auto px-4 py-10 sm:py-14 lg:py-16">
         <div className="grid gap-8 sm:gap-10 md:grid-cols-3">
           <div className="hidden md:block">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/70">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white">
               Links Rápidos
             </h3>
             <ul className="space-y-3 text-sm">
               <li>
                 <Link
                   to="/"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Início
                 </Link>
@@ -35,7 +35,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/events"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Eventos
                 </Link>
@@ -43,7 +43,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/sobre-nos"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Sobre Nós
                 </Link>
@@ -51,7 +51,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/faq"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   FAQ
                 </Link>
@@ -59,7 +59,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/contacto"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Contacto
                 </Link>
@@ -68,14 +68,14 @@ export default function Footer() {
           </div>
 
           <div className="hidden md:block">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/70">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white">
               Recursos
             </h3>
             <ul className="space-y-3 text-sm">
               <li>
                 <Link
                   to="/politica-de-privacidade"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Política de Privacidade
                 </Link>
@@ -83,7 +83,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/termos-de-servico"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Termos de Serviço
                 </Link>
@@ -91,7 +91,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/register"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Tornar-me Voluntário
                 </Link>
@@ -99,7 +99,7 @@ export default function Footer() {
               <li>
                 <Link
                   to="/login"
-                  className="text-white/80 transition hover:text-brand-primary"
+                  className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
                 >
                   Aceder à Conta
                 </Link>
@@ -108,27 +108,27 @@ export default function Footer() {
           </div>
 
           <div className="border-t border-white/10 pt-8 md:border-t-0 md:pt-0">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/70">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white">
               Contacto
             </h3>
             <ul className="space-y-4 text-sm">
-              <li className="flex items-start gap-3 text-white/80">
-                <Mail className="h-4 w-4 text-brand-primary" />
+              <li className="flex items-start gap-3 text-white">
+                <Mail className="h-4 w-4 text-white" />
                 <span className="leading-relaxed">
                   contacto@impactolocal.pt
                 </span>
               </li>
-              <li className="flex items-start gap-3 text-white/80">
-                <Phone className="h-4 w-4 text-brand-primary" />
+              <li className="flex items-start gap-3 text-white">
+                <Phone className="h-4 w-4 text-white" />
                 <span className="leading-relaxed">+351 123 456 789</span>
               </li>
-              <li className="flex items-start gap-3 text-white/80">
-                <MapPin className="h-4 w-4 text-brand-primary" />
+              <li className="flex items-start gap-3 text-white">
+                <MapPin className="h-4 w-4 text-white" />
                 <span className="leading-relaxed">Lisboa, Portugal</span>
               </li>
             </ul>
 
-            <div className="mt-6 flex flex-wrap gap-3 text-white/60">
+            <div className="mt-6 flex flex-wrap gap-3 text-white">
               <a
                 href="#"
                 aria-label="ImpactoLocal no Facebook"
@@ -155,7 +155,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 border-t border-white/10 pt-6 sm:mt-12 sm:pt-8">
-          <div className="flex flex-col gap-4 text-center text-sm text-white/70 sm:text-left md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4 text-center text-sm text-white sm:text-left md:flex-row md:items-center md:justify-between">
             <p>
               &copy; {new Date().getFullYear()} ImpactoLocal. Todos os direitos
               reservados.
@@ -163,13 +163,13 @@ export default function Footer() {
             <div className="flex flex-wrap justify-center gap-4 md:justify-end">
               <Link
                 to="/politica-de-privacidade"
-                className="transition hover:text-brand-primary"
+                className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
               >
                 Política de Privacidade
               </Link>
               <Link
                 to="/termos-de-servico"
-                className="transition hover:text-brand-primary"
+                className="text-white transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-secondary"
               >
                 Termos de Serviço
               </Link>
