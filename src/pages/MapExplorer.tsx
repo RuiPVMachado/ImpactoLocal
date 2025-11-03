@@ -1142,24 +1142,28 @@ const MapExplorer = () => {
                   />
                   Mostrar empresas de voluntariado
                 </label>
-                <div className="mt-3 rounded-lg bg-emerald-50 px-4 py-3 text-xs text-emerald-700">
+                <div className="mt-3 rounded-lg border border-brand-secondary/20 bg-brand-background px-4 py-3 text-xs text-gray-900">
                   {loadingEvents ? (
-                    <p className="text-emerald-700">A carregar eventos...</p>
+                    <p className="text-brand-primary">A carregar eventos...</p>
                   ) : (
                     <p>
                       Eventos encontrados:{" "}
-                      <strong>{filteredEvents.length}</strong>
+                      <strong className="text-brand-primary">
+                        {filteredEvents.length}
+                      </strong>
                     </p>
                   )}
                   {showOrganizations && (
                     <p className="mt-1">
                       Empresas na área selecionada:{" "}
-                      <strong>{filteredVolunteerPlaces.length}</strong>
+                      <strong className="text-brand-primary">
+                        {filteredVolunteerPlaces.length}
+                      </strong>
                       {placesLoading ? " (a carregar...)" : ""}
                       {!placesLoading &&
                         hiddenVolunteerCount === 0 &&
                         volunteerPlaces.length > 0 && (
-                          <span className="ml-1 text-[11px] text-emerald-700/80">
+                          <span className="ml-1 text-[11px] text-gray-600">
                             (total carregado: {volunteerPlaces.length})
                           </span>
                         )}
@@ -1168,7 +1172,7 @@ const MapExplorer = () => {
                   {showOrganizations &&
                     !placesLoading &&
                     hiddenVolunteerCount > 0 && (
-                      <p className="mt-1 text-[11px] text-emerald-700/80">
+                      <p className="mt-1 text-[11px] text-gray-600">
                         Ocultadas {hiddenVolunteerCount} organização(s) fora da
                         área desenhada (total carregado:{" "}
                         {volunteerPlaces.length}).
@@ -1178,25 +1182,25 @@ const MapExplorer = () => {
                     !placesLoading &&
                     volunteerPlaces.length > 0 &&
                     filteredVolunteerPlaces.length === 0 && (
-                      <p className="mt-1 text-emerald-700">
+                      <p className="mt-1 text-brand-primary">
                         Nenhuma organização dentro da área selecionada.
                       </p>
                     )}
                   {showOrganizations &&
                     !placesLoading &&
                     volunteerPlaces.length === 0 && (
-                      <p className="mt-1 text-emerald-700">
+                      <p className="mt-1 text-brand-primary">
                         Não encontrámos organizações de voluntariado nesta área.
                       </p>
                     )}
                   {pendingGeocodeCount > 0 && (
-                    <p className="mt-1 text-emerald-700">
+                    <p className="mt-1 text-brand-primary">
                       A localizar automaticamente {pendingGeocodeCount}{" "}
                       evento(s) pela morada indicada...
                     </p>
                   )}
                   {unresolvedWithoutAddress > 0 && (
-                    <p className="mt-1 text-amber-700">
+                    <p className="mt-1 text-amber-800">
                       Nota: {unresolvedWithoutAddress} evento(s) sem morada
                       válida não aparecem no mapa.
                     </p>

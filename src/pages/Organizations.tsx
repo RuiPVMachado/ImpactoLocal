@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Calendar, Filter, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -20,6 +20,8 @@ export default function Organizations() {
   const [refreshing, setRefreshing] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState(ALL_OPTION.value);
   const [cityFilter, setCityFilter] = useState(ALL_OPTION.value);
+  const categoryFilterId = useId();
+  const cityFilterId = useId();
 
   useEffect(() => {
     let active = true;
@@ -179,12 +181,16 @@ export default function Organizations() {
 
         <div className="bg-white border border-brand-secondary/20 rounded-2xl shadow-soft p-6 mb-8">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <label className="flex items-center gap-3 border border-brand-secondary/20 rounded-2xl px-4 py-3">
+            <label
+              htmlFor={categoryFilterId}
+              className="flex items-center gap-3 border border-brand-secondary/20 rounded-2xl px-4 py-3"
+            >
               <Filter className="h-5 w-5 text-brand-secondary" />
               <select
+                id={categoryFilterId}
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="flex-1 bg-transparent text-sm font-medium text-gray-700 focus:outline-none"
+                className="flex-1 bg-transparent text-sm font-medium text-gray-800 focus:outline-none"
               >
                 {categoryOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -196,12 +202,16 @@ export default function Organizations() {
               </select>
             </label>
 
-            <label className="flex items-center gap-3 border border-brand-secondary/20 rounded-2xl px-4 py-3">
+            <label
+              htmlFor={cityFilterId}
+              className="flex items-center gap-3 border border-brand-secondary/20 rounded-2xl px-4 py-3"
+            >
               <MapPin className="h-5 w-5 text-brand-secondary" />
               <select
+                id={cityFilterId}
                 value={cityFilter}
                 onChange={(event) => setCityFilter(event.target.value)}
-                className="flex-1 bg-transparent text-sm font-medium text-gray-700 focus:outline-none"
+                className="flex-1 bg-transparent text-sm font-medium text-gray-800 focus:outline-none"
               >
                 {cityOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -217,7 +227,7 @@ export default function Organizations() {
               type="button"
               onClick={refreshOrganizations}
               disabled={refreshing}
-              className="flex items-center justify-center gap-2 rounded-2xl border border-brand-secondary/20 bg-brand-background/60 px-4 py-3 text-sm font-semibold text-brand-secondary transition hover:border-brand-secondary/40 hover:text-brand-secondary/80 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center justify-center gap-2 rounded-2xl border border-brand-secondary bg-brand-background px-4 py-3 text-sm font-semibold text-brand-secondary transition hover:border-brand-secondary/60 hover:text-brand-secondary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw
                 className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`}
@@ -304,7 +314,7 @@ export default function Organizations() {
                           </p>
                         )}
                       </div>
-                      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-brand-neutral/70">
+                      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-brand-neutral">
                         {formatEventCountLabel(activeEvents.length)}
                       </p>
                     </div>
@@ -317,7 +327,7 @@ export default function Organizations() {
                   )}
 
                   <div className="mt-5">
-                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-neutral/70">
+                    <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-brand-neutral">
                       Eventos ativos
                     </h3>
                     {activeEvents.length > 0 ? (

@@ -1,4 +1,4 @@
-import { MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation } from "lucide-react";
 
 interface MapPlaceholderProps {
   address: string;
@@ -6,18 +6,29 @@ interface MapPlaceholderProps {
   lng?: number;
 }
 
-export default function MapPlaceholder({ address, lat, lng }: MapPlaceholderProps) {
-  const googleMapsUrl = lat && lng
-    ? `https://www.google.com/maps?q=${lat},${lng}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+export default function MapPlaceholder({
+  address,
+  lat,
+  lng,
+}: MapPlaceholderProps) {
+  const googleMapsUrl =
+    lat && lng
+      ? `https://www.google.com/maps?q=${lat},${lng}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          address
+        )}`;
 
-  const directionsUrl = lat && lng
-    ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
-    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+  const directionsUrl =
+    lat && lng
+      ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+      : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+          address
+        )}`;
 
-  const embedUrl = lat && lng
-    ? `https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`
-    : null;
+  const embedUrl =
+    lat && lng
+      ? `https://maps.google.com/maps?q=${lat},${lng}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+      : null;
 
   return (
     <div className="space-y-4">
@@ -50,7 +61,7 @@ export default function MapPlaceholder({ address, lat, lng }: MapPlaceholderProp
             href={googleMapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center bg-emerald-600 text-white px-4 py-3 rounded-lg hover:bg-emerald-700 transition font-semibold"
+            className="flex-1 flex items-center justify-center bg-brand-secondary text-white px-4 py-3 rounded-lg transition font-semibold hover:bg-brand-secondary/90"
           >
             <MapPin className="h-5 w-5 mr-2" />
             Ver no Google Maps
@@ -59,7 +70,7 @@ export default function MapPlaceholder({ address, lat, lng }: MapPlaceholderProp
             href={directionsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center border-2 border-emerald-600 text-emerald-600 px-4 py-3 rounded-lg hover:bg-emerald-50 transition font-semibold"
+            className="flex-1 flex items-center justify-center border-2 border-brand-secondary text-brand-secondary px-4 py-3 rounded-lg transition font-semibold hover:bg-brand-secondary hover:text-white"
           >
             <Navigation className="h-5 w-5 mr-2" />
             Como Chegar

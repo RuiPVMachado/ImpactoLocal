@@ -39,9 +39,9 @@ export default function FAQ() {
       <section className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex justify-center mb-6">
-            <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm px-5 py-2 rounded-full border border-white/20">
+            <div className="inline-flex items-center gap-3 bg-white/15 backdrop-blur-sm px-5 py-2 rounded-full border border-white/20">
               <HelpCircle className="h-5 w-5" />
-              <span className="text-sm font-semibold tracking-wide uppercase">
+              <span className="text-sm font-semibold tracking-wide uppercase text-white">
                 Perguntas Frequentes
               </span>
             </div>
@@ -49,7 +49,7 @@ export default function FAQ() {
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             Tudo o que precisa de saber
           </h1>
-          <p className="text-xl text-emerald-50">
+          <p className="text-xl text-white/90">
             Encontre respostas rápidas sobre como tirar o máximo partido da
             plataforma ImpactoLocal.
           </p>
@@ -94,7 +94,7 @@ export default function FAQ() {
             ))}
           </div>
 
-          <aside className="space-y-6">
+          <div className="space-y-6">
             <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-3">
                 Ainda tem dúvidas?
@@ -105,26 +105,28 @@ export default function FAQ() {
               </p>
               <a
                 href="/contacto"
-                className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition"
+                className="inline-flex items-center justify-center gap-2 bg-brand-secondary text-white px-5 py-3 rounded-lg font-semibold transition hover:bg-brand-secondary/90"
               >
                 Contactar equipa
               </a>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-emerald-900 mb-3">
+            <div className="bg-brand-background border border-brand-secondary/20 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
                 Sugira uma pergunta
               </h3>
-              <p className="text-emerald-800 text-sm">
+              <p className="text-sm text-gray-700">
                 Não encontrou a resposta que procurava? Envie-nos a sua pergunta
                 e iremos adicioná-la a esta secção.
               </p>
-              <p className="mt-3 text-sm text-emerald-700">
+              <p className="mt-3 text-sm text-gray-700">
                 Email:{" "}
-                <span className="font-semibold">contacto@impactolocal.pt</span>
+                <span className="font-semibold text-brand-primary">
+                  contacto@impactolocal.pt
+                </span>
               </p>
             </div>
-          </aside>
+          </div>
         </div>
       </section>
     </div>

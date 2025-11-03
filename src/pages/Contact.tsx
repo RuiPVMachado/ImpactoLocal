@@ -48,7 +48,7 @@ export default function Contact() {
       <section className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-6">Contacto</h1>
-          <p className="text-xl text-emerald-50">
+          <p className="text-xl text-white/90">
             Estamos aqui para ajudar. Envie-nos uma mensagem e entraremos em
             contacto o mais rápido possível.
           </p>
@@ -118,7 +118,7 @@ export default function Contact() {
                     htmlFor="subject"
                     className="block text-sm font-semibold text-gray-700 mb-2"
                   >
-                    Assunto <span className="text-gray-400">(opcional)</span>
+                    Assunto <span className="text-gray-600">(opcional)</span>
                   </label>
                   <input
                     id="subject"
@@ -158,7 +158,7 @@ export default function Contact() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-brand-secondary text-white px-6 py-3 rounded-lg font-semibold transition hover:bg-brand-secondary/90 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <Send className="h-5 w-5" />
                   {isSubmitting ? "A enviar..." : "Enviar mensagem"}
@@ -194,7 +194,7 @@ export default function Contact() {
                   </h3>
                 </div>
                 <p className="text-gray-600">+351 123 456 789</p>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-gray-600 mt-2">
                   Segunda a Sexta · 09h às 18h (horário de Lisboa)
                 </p>
               </div>

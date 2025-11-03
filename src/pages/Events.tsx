@@ -1,4 +1,10 @@
-import { useEffect, useState, type ChangeEvent, useCallback } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  useCallback,
+  useId,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Filter, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -29,44 +35,51 @@ export default function Events() {
   const [refreshing, setRefreshing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [pagination, setPagination] = useState<PaginatedResponse<Event> | null>(null);
+  const [pagination, setPagination] = useState<PaginatedResponse<Event> | null>(
+    null
+  );
+  const searchInputId = useId();
+  const categorySelectId = useId();
 
-  const loadEvents = useCallback(async (page = currentPage, resetPagination = false) => {
-    if (resetPagination) {
-      setCurrentPage(1);
-      setPageSize(DEFAULT_PAGE_SIZE);
-      page = 1;
-    }
-
-    setLoading(true);
-    try {
-      // Use server-side search and filtering if searchTerm is provided
-      const result = await fetchEvents({
-        page,
-        pageSize,
-        category: selectedCategory !== "all" ? selectedCategory : undefined,
-        searchTerm: searchTerm.trim() || undefined,
-      });
-
-      if (Array.isArray(result)) {
-        // Legacy format - no pagination
-        setEvents(result);
-        setPagination(null);
-      } else {
-        // Paginated format
-        setEvents(result.data);
-        setPagination(result);
-        setCurrentPage(result.page);
+  const loadEvents = useCallback(
+    async (page = currentPage, resetPagination = false) => {
+      if (resetPagination) {
+        setCurrentPage(1);
+        setPageSize(DEFAULT_PAGE_SIZE);
+        page = 1;
       }
-    } catch (error: unknown) {
-      console.error("Erro ao carregar eventos:", error);
-      toast.error("Não foi possível carregar os eventos.");
-      setEvents([]);
-      setPagination(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchTerm, selectedCategory, pageSize, currentPage]);
+
+      setLoading(true);
+      try {
+        // Use server-side search and filtering if searchTerm is provided
+        const result = await fetchEvents({
+          page,
+          pageSize,
+          category: selectedCategory !== "all" ? selectedCategory : undefined,
+          searchTerm: searchTerm.trim() || undefined,
+        });
+
+        if (Array.isArray(result)) {
+          // Legacy format - no pagination
+          setEvents(result);
+          setPagination(null);
+        } else {
+          // Paginated format
+          setEvents(result.data);
+          setPagination(result);
+          setCurrentPage(result.page);
+        }
+      } catch (error: unknown) {
+        console.error("Erro ao carregar eventos:", error);
+        toast.error("Não foi possível carregar os eventos.");
+        setEvents([]);
+        setPagination(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchTerm, selectedCategory, pageSize, currentPage]
+  );
 
   useEffect(() => {
     // Debounce search term
@@ -130,6 +143,9 @@ export default function Events() {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <label htmlFor={searchInputId} className="sr-only">
+                Pesquisar eventos
+              </label>
               <input
                 type="text"
                 placeholder="Pesquisar eventos..."
@@ -137,13 +153,18 @@ export default function Events() {
                 onChange={(event: ChangeEvent<HTMLInputElement>) =>
                   setSearchTerm(event.target.value)
                 }
+                id={searchInputId}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
 
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <label htmlFor={categorySelectId} className="sr-only">
+                Filtrar por categoria
+              </label>
               <select
+                id={categorySelectId}
                 value={selectedCategory}
                 onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                   setSelectedCategory(event.target.value)
@@ -191,6 +212,9 @@ export default function Events() {
           </div>
         ) : events.length > 0 ? (
           <>
+            <h2 className="sr-only" id="event-list-heading">
+              Lista de eventos disponíveis
+            </h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {events.map((event) => (
                 <EventCard
@@ -217,7 +241,9 @@ export default function Events() {
           </>
         ) : (
           <div className="text-center py-12 bg-white rounded-lg shadow-md">
-            <p className="text-gray-600 text-lg mb-2">Nenhum evento encontrado.</p>
+            <p className="text-gray-600 text-lg mb-2">
+              Nenhum evento encontrado.
+            </p>
             <p className="text-gray-500 text-sm">
               {searchTerm || selectedCategory !== "all"
                 ? "Tente ajustar os filtros de pesquisa."
