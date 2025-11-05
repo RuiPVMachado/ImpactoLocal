@@ -10,7 +10,7 @@ import { Search, Filter, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 import EventCard from "../components/EventCard";
 import Pagination from "../components/Pagination";
-import { fetchEvents, type PaginatedResponse } from "../lib/api";
+import { fetchEvents, type PaginatedResponse } from "../lib/events";
 import type { Event } from "../types";
 
 const categories = [

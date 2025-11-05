@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, Search, Calendar, TrendingUp } from "lucide-react";
 import EventCard from "../components/EventCard";
-import { fetchEvents } from "../lib/api";
+import { fetchEvents } from "../lib/events";
 import type { Event } from "../types";
 
 export default function Home() {

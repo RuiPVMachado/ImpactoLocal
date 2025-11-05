@@ -11,7 +11,8 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { fetchProfileById, fetchVolunteerStatistics } from "../lib/api";
+import { fetchVolunteerStatistics } from "../lib/api";
+import { fetchProfileById } from "../lib/profiles";
 import type { Profile, VolunteerStatistics } from "../types";
 
 export default function VolunteerProfilePublic() {

@@ -16,7 +16,7 @@ import {
   deleteEvent,
   fetchOrganizationEvents,
   type PaginatedResponse,
-} from "../lib/api";
+} from "../lib/events";
 import type { Event } from "../types";
 
 const DEFAULT_PAGE_SIZE = 20;

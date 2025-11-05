@@ -20,7 +20,7 @@ import {
   fetchAdminEvents,
   fetchAdminMetrics,
   fetchAdminProfiles,
-} from "../lib/api";
+} from "../lib/admin";
 import type { AdminMetrics, Event, Profile, UserRole } from "../types";
 
 type TabKey = "users" | "organizations" | "events";

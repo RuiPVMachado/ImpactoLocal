@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../context/useAuth";
-import { fetchEventById, updateEvent } from "../lib/api";
+import { fetchEventById, updateEvent } from "../lib/events";
 import type { Event } from "../types";
 import {
   getNowLocalDateTimeInputValue,

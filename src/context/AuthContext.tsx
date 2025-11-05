@@ -16,7 +16,7 @@ import {
   type User,
 } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { fetchProfileById } from "../lib/api";
+import { fetchProfileById } from "../lib/profiles";
 import type { OrganizationImpactStats, Profile, UserRole } from "../types";
 
 interface AuthResponse {

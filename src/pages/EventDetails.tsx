@@ -14,11 +14,8 @@ import {
 import { toast } from "react-hot-toast";
 import MapPlaceholder from "../components/MapPlaceholder";
 import { useAuth } from "../context/useAuth";
-import {
-  applyToEvent,
-  checkExistingApplication,
-  fetchEventById,
-} from "../lib/api";
+import { applyToEvent, checkExistingApplication } from "../lib/api";
+import { fetchEventById } from "../lib/events";
 import { formatDurationWithHours } from "../lib/formatters";
 import { getEventEndDate } from "../lib/datetime";
 import {

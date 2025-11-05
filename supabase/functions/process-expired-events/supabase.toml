@@ -1,0 +1,6 @@
+[functions]
+verify_jwt = false
+
+[schedule]
+# Run at minute 5 of every hour (UTC)
+cron = "5 * * * *"

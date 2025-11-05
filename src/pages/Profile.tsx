@@ -20,11 +20,9 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
-import {
-  fetchOrganizationEvents,
-  fetchVolunteerStatistics,
-  updateProfile,
-} from "../lib/api";
+import { fetchVolunteerStatistics } from "../lib/api";
+import { fetchOrganizationEvents } from "../lib/events";
+import { updateProfile } from "../lib/profiles";
 import type { Event, Profile, VolunteerStatistics } from "../types";
 import {
   getImageConstraintsDescription,

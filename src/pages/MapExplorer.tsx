@@ -11,7 +11,7 @@ import {
 } from "@react-google-maps/api";
 import { Filter, MapPin, MousePointer2, Trash2, Building2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { fetchEvents } from "../lib/api";
+import { fetchEvents } from "../lib/events";
 import {
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,

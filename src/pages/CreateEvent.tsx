@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/useAuth";
-import { createEvent } from "../lib/api";
+import { createEvent } from "../lib/events";
 import {
   getNowLocalDateTimeInputValue,
   MIN_EVENT_START_LEEWAY_MS,
