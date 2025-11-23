@@ -4,6 +4,7 @@ import { Heart, Search, Calendar, TrendingUp } from "lucide-react";
 import EventCard from "../components/EventCard";
 import { fetchEvents } from "../lib/events";
 import type { Event } from "../types";
+import MediaDescription from "../components/accessibility/MediaDescription";
 
 export default function Home() {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
@@ -45,7 +46,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <section className="relative isolate overflow-hidden bg-hero-banner bg-cover bg-center py-20 px-4 text-white sm:py-24">
+      <section
+        className="relative isolate overflow-hidden bg-hero-banner bg-cover bg-center py-20 px-4 text-white sm:py-24"
+        aria-describedby="hero-media-description"
+      >
         <div className="absolute inset-0 bg-brand-secondary/40 mix-blend-multiply" />
         <div className="absolute inset-0 bg-brand-background/40" />
         <div className="relative max-w-6xl mx-auto text-center">
@@ -70,6 +74,17 @@ export default function Home() {
               Ver Eventos
             </Link>
           </div>
+          <MediaDescription
+            id="hero-media-description"
+            heading="Descrição do banner"
+            description="Fotografia em grande plano de voluntários a plantar árvores numa manhã ensolarada, com sobreposição em tons verdes e laranja."
+            captionTitle="Elementos visuais destacados"
+            captionItems={[
+              "Texto principal: Conectando Voluntários a Causas que Importam",
+              "Botões 'Começar Agora' e 'Ver Eventos'",
+              "Tonalidades afinadas ao modo de cor ativo",
+            ]}
+          />
         </div>
       </section>
 

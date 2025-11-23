@@ -1,3 +1,12 @@
+const withOpacityValue = (variableName) => {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      return `rgb(var(${variableName}) / ${opacityValue})`;
+    }
+    return `rgb(var(${variableName}))`;
+  };
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -5,15 +14,15 @@ export default {
     extend: {
       colors: {
         brand: {
-          background: "#F5F1E8",
-          primary: "#B64C30",
-          primaryHover: "#9B4129",
-          secondary: "#5A7D6A",
-          secondaryHover: "#4C6A5A",
-          neutral: "#6B6B6B",
-          neutralSoft: "#877F76",
-          surface: "#FFFFFF",
-          surfaceAlt: "#F0E7DC",
+          background: withOpacityValue("--brand-background-rgb"),
+          primary: withOpacityValue("--brand-primary-rgb"),
+          primaryHover: withOpacityValue("--brand-primary-hover-rgb"),
+          secondary: withOpacityValue("--brand-secondary-rgb"),
+          secondaryHover: withOpacityValue("--brand-secondary-hover-rgb"),
+          neutral: withOpacityValue("--brand-neutral-rgb"),
+          neutralSoft: withOpacityValue("--brand-neutral-soft-rgb"),
+          surface: withOpacityValue("--brand-surface-rgb"),
+          surfaceAlt: withOpacityValue("--brand-surface-alt-rgb"),
         },
         emerald: {
           50: "#FBF6F5",

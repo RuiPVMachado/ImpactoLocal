@@ -114,10 +114,6 @@ export default function NotificationBell() {
     };
   }, [open]);
 
-  if (!isAuthenticated || !user) {
-    return null;
-  }
-
   const getNotificationIcon = (notification: Notification) => {
     if (notification.type === "application_approved") {
       return <CheckCircle2 className="h-4 w-4 text-brand-secondary" />;
@@ -168,6 +164,10 @@ export default function NotificationBell() {
     },
     [user?.type]
   );
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   const handleNotificationClick = (notification: Notification) => {
     setNotifications((current) =>

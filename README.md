@@ -118,6 +118,16 @@ npm run typecheck  # Verifica tipos TypeScript
 - 🚧 Mobile app
 - 🚧 Multi-language
 
+## Acessibilidade
+
+- Painel flutuante com modo escuro, alto contraste e paletas amigas do daltonismo.
+- Ajustes persistentes de tipografia, espaçamentos, foco, movimento e suporte a fontes dislexia-friendly.
+- Controle por voz com ditado, comandos de navegação e inserção direta em campos de formulário.
+- Descrições textuais/legendas para media (ex.: _hero_ da Home) e formulário de login com instruções e sumário de erros.
+- Live region global que anuncia alterações do painel para apoiar tecnologias assistivas.
+
+Documentação completa em [`ACCESSIBILITY.md`](./ACCESSIBILITY.md).
+
 ## Notificações por Email com Resend
 
 Quando uma organização aprova a candidatura de um voluntário, um email automático é enviado através de uma Edge Function do Supabase que integra com a API do Resend.

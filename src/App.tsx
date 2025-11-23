@@ -13,6 +13,10 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
+import SkipToContentLink from "./components/SkipToContentLink";
+import AccessibilityPanel from "./components/accessibility/AccessibilityPanel";
+import LiveAnnouncements from "./components/accessibility/LiveAnnouncements";
+import { AccessibilityProvider } from "./context/AccessibilityContext";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
@@ -23,7 +27,9 @@ const Events = lazy(() => import("./pages/Events"));
 const EventDetails = lazy(() => import("./pages/EventDetails"));
 const MyApplications = lazy(() => import("./pages/MyApplications"));
 const Profile = lazy(() => import("./pages/Profile"));
-const OrganizationDashboard = lazy(() => import("./pages/OrganizationDashboard"));
+const OrganizationDashboard = lazy(
+  () => import("./pages/OrganizationDashboard")
+);
 const OrganizationEvents = lazy(() => import("./pages/OrganizationEvents"));
 const CreateEvent = lazy(() => import("./pages/CreateEvent"));
 const EditEvent = lazy(() => import("./pages/EditEvent"));
@@ -33,8 +39,12 @@ const Contact = lazy(() => import("./pages/Contact"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const MapExplorer = lazy(() => import("./pages/MapExplorer"));
 const Organizations = lazy(() => import("./pages/Organizations"));
-const OrganizationProfilePublic = lazy(() => import("./pages/OrganizationProfilePublic"));
-const VolunteerProfilePublic = lazy(() => import("./pages/VolunteerProfilePublic"));
+const OrganizationProfilePublic = lazy(
+  () => import("./pages/OrganizationProfilePublic")
+);
+const VolunteerProfilePublic = lazy(
+  () => import("./pages/VolunteerProfilePublic")
+);
 const PersonalCalendar = lazy(() => import("./pages/PersonalCalendar"));
 const ShareEventRecap = lazy(() => import("./pages/ShareEventRecap"));
 
@@ -59,10 +69,17 @@ function AppRoutes() {
   return (
     <Router>
       <PasswordResetBoundary>
+        <SkipToContentLink />
         <div className="min-h-screen bg-gray-50 flex flex-col">
           <Navbar />
-          <main className="flex-grow">
-            <Suspense fallback={<div className="py-12 text-center text-brand-neutral">A carregar...</div>}>
+          <main id="principal" className="flex-grow" tabIndex={-1} role="main">
+            <Suspense
+              fallback={
+                <div className="py-12 text-center text-brand-neutral">
+                  A carregar...
+                </div>
+              }
+            >
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route
@@ -190,6 +207,8 @@ function AppRoutes() {
           <Footer />
         </div>
         <Toaster position="top-right" />
+        <AccessibilityPanel />
+        <LiveAnnouncements />
       </PasswordResetBoundary>
     </Router>
   );
@@ -198,7 +217,9 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <AccessibilityProvider>
+        <AppRoutes />
+      </AccessibilityProvider>
     </AuthProvider>
   );
 }

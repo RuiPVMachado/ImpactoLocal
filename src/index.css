@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,20 +6,117 @@
 
 @layer base {
   :root {
-    color: #6b6b6b;
-    background-color: #f5f1e8;
-    --impacto-primary: #d4846e;
-    --impacto-primary-hover: #c16f59;
-    --impacto-secondary: #5a7d6a;
-    --impacto-secondary-hover: #4c6a5a;
-    --impacto-secondary-soft: #e3e6e1;
-    --impacto-surface: #ffffff;
-    --impacto-surface-alt: #f0e7dc;
+    color-scheme: light;
+    --text-scale: 1;
+    --line-height-scale: 1;
+    --letter-spacing: 0em;
+    --paragraph-spacing: 1rem;
+    --brand-background-rgb: 245 241 232;
+    --brand-surface-rgb: 255 255 255;
+    --brand-surface-alt-rgb: 240 231 220;
+    --brand-primary-rgb: 212 132 110;
+    --brand-primary-hover-rgb: 193 111 89;
+    --brand-secondary-rgb: 90 125 106;
+    --brand-secondary-hover-rgb: 76 106 90;
+    --brand-neutral-rgb: 107 107 107;
+    --brand-neutral-soft-rgb: 135 127 118;
+    --text-strong-rgb: 30 31 34;
+    --text-muted-rgb: 87 87 87;
+    --focus-ring-color: #2563eb;
+    --font-family-base: "Inter", ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-family-dyslexia: "Atkinson Hyperlegible", "Segoe UI", system-ui,
+      sans-serif;
+    --font-family-active: var(--font-family-base);
+  }
+
+  :root {
+    --brand-background-color: rgb(var(--brand-background-rgb));
+    --brand-surface-color: rgb(var(--brand-surface-rgb));
+    --brand-surface-alt-color: rgb(var(--brand-surface-alt-rgb));
+    --brand-primary-color: rgb(var(--brand-primary-rgb));
+    --brand-primary-hover-color: rgb(var(--brand-primary-hover-rgb));
+    --brand-secondary-color: rgb(var(--brand-secondary-rgb));
+    --brand-secondary-hover-color: rgb(var(--brand-secondary-hover-rgb));
+    --brand-neutral-color: rgb(var(--brand-neutral-rgb));
+    --brand-neutral-soft-color: rgb(var(--brand-neutral-soft-rgb));
+    --text-strong-color: rgb(var(--text-strong-rgb));
+    --text-muted-color: rgb(var(--text-muted-rgb));
+  }
+
+  :root[data-font-style="dyslexia"] {
+    --font-family-active: var(--font-family-dyslexia);
+  }
+
+  :root[data-color-mode="dark"] {
+    color-scheme: dark;
+    --brand-background-rgb: 14 18 26;
+    --brand-surface-rgb: 25 31 44;
+    --brand-surface-alt-rgb: 35 44 60;
+    --text-strong-rgb: 244 246 250;
+    --text-muted-rgb: 198 203 210;
+    --focus-ring-color: #facc15;
+  }
+
+  :root[data-color-mode="high-contrast"] {
+    color-scheme: light;
+    --brand-background-rgb: 0 0 0;
+    --brand-surface-rgb: 0 0 0;
+    --brand-surface-alt-rgb: 28 28 28;
+    --brand-primary-rgb: 255 255 0;
+    --brand-primary-hover-rgb: 255 220 86;
+    --brand-secondary-rgb: 255 255 255;
+    --brand-secondary-hover-rgb: 255 255 255;
+    --text-strong-rgb: 255 255 255;
+    --text-muted-rgb: 234 234 234;
+    --focus-ring-color: #ffde59;
+  }
+
+  :root[data-color-palette="impacto"] {
+    --brand-primary-rgb: 212 132 110;
+    --brand-primary-hover-rgb: 193 111 89;
+    --brand-secondary-rgb: 90 125 106;
+    --brand-secondary-hover-rgb: 76 106 90;
+  }
+
+  :root[data-color-palette="protanopia"] {
+    --brand-primary-rgb: 0 123 255;
+    --brand-primary-hover-rgb: 0 105 217;
+    --brand-secondary-rgb: 255 149 0;
+    --brand-secondary-hover-rgb: 224 130 0;
+  }
+
+  :root[data-color-palette="deuteranopia"] {
+    --brand-primary-rgb: 126 87 194;
+    --brand-primary-hover-rgb: 103 65 171;
+    --brand-secondary-rgb: 255 193 7;
+    --brand-secondary-hover-rgb: 230 167 0;
+  }
+
+  :root[data-color-palette="tritanopia"] {
+    --brand-primary-rgb: 233 92 99;
+    --brand-primary-hover-rgb: 207 73 80;
+    --brand-secondary-rgb: 46 204 113;
+    --brand-secondary-hover-rgb: 39 174 96;
+  }
+
+  :root[data-color-palette="mono"] {
+    --brand-primary-rgb: 180 180 180;
+    --brand-primary-hover-rgb: 220 220 220;
+    --brand-secondary-rgb: 240 240 240;
+    --brand-secondary-hover-rgb: 200 200 200;
   }
 
   body {
-    @apply bg-brand-background text-brand-neutral font-sans;
-    line-height: 1.6;
+    min-height: 100vh;
+    background-color: var(--brand-background-color);
+    color: var(--text-strong-color);
+    font-family: var(--font-family-active);
+    font-size: calc(1rem * var(--text-scale));
+    line-height: calc(1.6 * var(--line-height-scale));
+    letter-spacing: var(--letter-spacing);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    text-rendering: optimizeLegibility;
   }
 
   h1,
@@ -28,12 +125,44 @@
   h4,
   h5,
   h6 {
-    @apply text-gray-900 font-semibold;
+    color: var(--text-strong-color);
+  }
+
+  p,
+  li,
+  label {
+    line-height: inherit;
+    letter-spacing: inherit;
+    margin-bottom: var(--paragraph-spacing);
   }
 
   button,
   .btn {
     border-radius: 12px;
+  }
+
+  .skip-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 50;
+    padding: 0.5rem 1rem;
+    background: var(--brand-secondary-color);
+    color: #fff;
+    border-radius: 999px;
+    transform: translateY(-200%);
+    transition: transform 0.2s ease;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+    outline: 3px solid var(--focus-ring-color);
+    outline-offset: 4px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 3px;
   }
 }
 
@@ -41,113 +170,153 @@
   .bg-gradient-to-br.from-emerald-600.to-teal-700,
   .bg-gradient-to-r.from-emerald-500.to-teal-600 {
     background-image: none !important;
-    background-color: #5a7d6a !important;
+    background-color: var(--brand-secondary-color) !important;
   }
 
   .bg-gradient-to-br.from-emerald-50.to-teal-100 {
     background-image: none !important;
-    background-color: #f5f1e8 !important;
+    background-color: var(--brand-background-color) !important;
   }
 
   .bg-gradient-to-br.from-emerald-400.to-teal-500 {
     background-image: none !important;
-    background-color: #d4846e !important;
+    background-color: var(--brand-primary-color) !important;
   }
 
   .text-emerald-600,
   .text-emerald-700,
   .text-emerald-800,
   .text-emerald-900 {
-    color: var(--impacto-secondary) !important;
+    color: var(--brand-secondary-color) !important;
   }
 
   .text-emerald-50,
   .text-emerald-100 {
-    color: #f8f2ea !important;
+    color: var(--brand-surface-alt-color) !important;
   }
 
   .text-emerald-700\/80,
   .text-emerald-700\/70 {
-    color: rgba(90, 125, 106, 0.8) !important;
+    color: color-mix(
+      in srgb,
+      var(--brand-secondary-color) 80%,
+      transparent
+    ) !important;
   }
 
   .hover\:text-emerald-600:hover,
   .hover\:text-emerald-700:hover,
   .focus\:text-emerald-600:focus {
-    color: var(--impacto-secondary) !important;
+    color: var(--brand-secondary-color) !important;
   }
 
   .bg-emerald-600,
   .bg-emerald-500 {
-    background-color: var(--impacto-primary) !important;
+    background-color: var(--brand-primary-color) !important;
   }
 
   .hover\:bg-emerald-700:hover,
   .focus\:bg-emerald-700:focus {
-    background-color: var(--impacto-primary-hover) !important;
+    background-color: var(--brand-primary-hover-color) !important;
   }
 
   .border-emerald-200,
   .border-emerald-100 {
-    border-color: #f2d3c3 !important;
+    border-color: color-mix(
+      in srgb,
+      var(--brand-primary-color) 30%,
+      #ffffff
+    ) !important;
   }
 
   .border-emerald-300 {
-    border-color: #e09f84 !important;
+    border-color: color-mix(
+      in srgb,
+      var(--brand-primary-color) 45%,
+      #ffffff
+    ) !important;
   }
 
   .border-emerald-600,
   .border-emerald-500,
   .border-emerald-700,
   .border-emerald-900 {
-    border-color: var(--impacto-primary) !important;
+    border-color: var(--brand-secondary-color) !important;
   }
 
   .border-t-emerald-500 {
-    border-top-color: var(--impacto-primary) !important;
+    border-top-color: var(--brand-secondary-color) !important;
   }
 
   .bg-emerald-50 {
-    background-color: #f9ede3 !important;
+    background-color: color-mix(
+      in srgb,
+      var(--brand-primary-color) 8%,
+      var(--brand-background-color)
+    ) !important;
   }
 
   .bg-emerald-100 {
-    background-color: #f2d3c3 !important;
+    background-color: color-mix(
+      in srgb,
+      var(--brand-primary-color) 18%,
+      var(--brand-background-color)
+    ) !important;
   }
 
   .bg-emerald-200 {
-    background-color: #eab9a3 !important;
+    background-color: color-mix(
+      in srgb,
+      var(--brand-primary-color) 28%,
+      var(--brand-background-color)
+    ) !important;
   }
 
   .bg-emerald-500\/10,
   .bg-emerald-500\/5 {
-    background-color: rgba(212, 132, 110, 0.1) !important;
+    background-color: color-mix(
+      in srgb,
+      var(--brand-primary-color) 12%,
+      transparent
+    ) !important;
   }
 
   .focus\:ring-emerald-500:focus,
   .focus\:ring-emerald-500:focus-visible,
   .focus\:ring-emerald-200:focus,
   .focus\:ring-emerald-200:focus-visible {
-    --tw-ring-color: rgba(90, 125, 106, 0.35) !important;
+    --tw-ring-color: color-mix(
+      in srgb,
+      var(--brand-secondary-color) 80%,
+      transparent
+    ) !important;
   }
 
   .focus\:ring-emerald-200:focus,
   .focus\:ring-emerald-200:focus-visible {
-    --tw-ring-color: rgba(90, 125, 106, 0.2) !important;
+    --tw-ring-color: color-mix(
+      in srgb,
+      var(--brand-secondary-color) 45%,
+      transparent
+    ) !important;
   }
 
   .focus\:border-emerald-500:focus,
   .focus\:border-emerald-500:focus-visible,
   .focus\:border-emerald-500:focus-within {
-    border-color: var(--impacto-secondary) !important;
+    border-color: var(--brand-secondary-color) !important;
   }
 
   .focus\:border-emerald-500:focus-visible {
-    outline-color: var(--impacto-secondary) !important;
+    outline-color: var(--brand-secondary-color) !important;
   }
 
   .focus\:border-emerald-200:focus,
   .focus\:border-emerald-200:focus-visible {
-    border-color: rgba(90, 125, 106, 0.2) !important;
+    border-color: color-mix(
+      in srgb,
+      var(--brand-secondary-color) 35%,
+      transparent
+    ) !important;
   }
 }

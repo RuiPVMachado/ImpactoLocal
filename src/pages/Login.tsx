@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart, Mail, Lock } from "lucide-react";
@@ -8,22 +8,28 @@ import { useAuth } from "../context/useAuth";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
   const { login, authLoading } = useAuth();
   const navigate = useNavigate();
+  const instructionsId = useId();
+  const errorId = useId();
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setFormError(null);
     const result = await login(email.trim(), password);
     if (result.success) {
       toast.success("Sessão iniciada com sucesso");
       navigate("/events");
     } else if (result.requiresEmailConfirmation) {
-      toast.error(
+      const message =
         result.error ??
-          "Confirme o seu email antes de iniciar sessão. Consulte a sua caixa de entrada."
-      );
+        "Confirme o seu email antes de iniciar sessão. Consulte a sua caixa de entrada.";
+      toast.error(message);
+      setFormError(message);
     } else if (result.error) {
       toast.error(result.error);
+      setFormError(result.error);
     }
   };
 
@@ -40,11 +46,22 @@ export default function Login() {
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Bem-vindo de volta
           </h2>
-          <p className="text-center text-brand-neutral mb-8">
+          <p className="text-center text-brand-neutral mb-4">
             Entre para continuar a fazer a diferença
           </p>
+          <p id={instructionsId} className="text-sm text-brand-neutral/80 mb-6">
+            Todos os campos são obrigatórios. Utilize a tecla Tab para navegar
+            entre os campos e certifique-se de que preenche ambos antes de
+            submeter.
+          </p>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6"
+            aria-describedby={
+              formError ? `${instructionsId} ${errorId}` : instructionsId
+            }
+          >
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Email
