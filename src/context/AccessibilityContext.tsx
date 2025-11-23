@@ -45,7 +45,7 @@ interface AccessibilityContextValue {
 const STORAGE_KEY = "impactoLocal:accessibility";
 
 const defaultSettings: AccessibilitySettings = {
-  colorMode: "auto",
+  colorMode: "light",
   colorPalette: "impacto",
   textScale: 1,
   fontStyle: "default",
@@ -53,7 +53,7 @@ const defaultSettings: AccessibilitySettings = {
   letterSpacing: 0,
   paragraphSpacing: 1,
   audioDescriptions: false,
-  captions: true,
+  captions: false,
 };
 
 const AccessibilityContext = createContext<AccessibilityContextValue | null>(
