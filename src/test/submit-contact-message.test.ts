@@ -1,3 +1,4 @@
+// Validates contact form input guarding and edge function invocation.
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 type InvokeResult = {

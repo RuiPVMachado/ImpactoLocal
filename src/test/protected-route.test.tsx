@@ -1,3 +1,4 @@
+// Behavioral checks for ProtectedRoute redirects given different auth states.
 import type { ReactNode } from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";

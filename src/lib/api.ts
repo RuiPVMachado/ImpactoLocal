@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 import { notifyApplicationSubmitted } from "./notifications";
 import { MIN_EVENT_START_LEEWAY_MS } from "./datetime";
+
+// Centralized data-access helpers that wrap Supabase queries and edge functions.
 import type {
   AdminMetrics,
   Application,
@@ -241,6 +243,7 @@ type AdminManageResponse<T> =
   | { success: true; data: T }
   | { success: false; error?: string };
 
+// Joined select used across application fetches to avoid duplicating relationship trees.
 const APPLICATION_SELECT = `*,
         event:events(
           *,
@@ -292,6 +295,7 @@ function isPermissionDeniedError(error: unknown): boolean {
   return false;
 }
 
+// Defensive parsing so we can tolerate stats saved as strings.
 const parseStatNumber = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -305,6 +309,7 @@ const parseStatNumber = (value: unknown): number | null => {
   return null;
 };
 
+// Shape a raw profile row into the normalized object the UI expects.
 const toProfile = (row: ProfileRow): Profile => {
   const galleryUrls = Array.isArray(row.gallery_urls)
     ? row.gallery_urls
@@ -361,6 +366,7 @@ const toProfileSummary = (
   };
 };
 
+// Map the events table plus optional joined organization into a typed Event.
 const toEvent = (row: EventRow): Event => ({
   id: row.id,
   organizationId: row.organization_id,
@@ -417,6 +423,7 @@ const toNotification = (row: NotificationRow): Notification => ({
   createdAt: row.created_at,
 });
 
+// Fan-out notification to the organization as soon as an application arrives.
 const handleApplicationSubmissionNotification = (
   application: VolunteerApplication,
   messageOverride?: string
@@ -499,6 +506,7 @@ export async function processExpiredEvents(
   return payload;
 }
 
+// Rate-limited guard that keeps event lifecycles up to date in the background.
 async function ensureExpiredEventsProcessed(): Promise<void> {
   const now = Date.now();
 
@@ -531,6 +539,7 @@ async function ensureExpiredEventsProcessed(): Promise<void> {
   await expiredEventsProcessingPromise;
 }
 
+// Public edge function fallback used when RLS blocks direct table reads.
 async function fetchOrganizationsDirectoryViaFunction(): Promise<
   OrganizationDirectoryEntry[]
 > {
@@ -587,6 +596,7 @@ async function fetchOrganizationPublicProfileViaFunction(
   return payload.data;
 }
 
+// Thin wrapper around the admin-manage function that injects the current JWT.
 async function invokeAdminManage<T>(payload: AdminManagePayload): Promise<T> {
   const {
     data: { session },
@@ -652,6 +662,7 @@ async function invokeAdminManage<T>(payload: AdminManagePayload): Promise<T> {
   return response.data;
 }
 
+// Matches loose duration strings ("1h30", "90m", etc.) so stats stay consistent.
 const parseDurationToHours = (duration: string | null | undefined): number => {
   if (!duration) return 0;
 
@@ -715,6 +726,7 @@ type ManageApplicationInvokeResponse = {
   };
 };
 
+// Shared helper for every application action so we do not duplicate invocation code.
 async function invokeManageApplication(params: {
   action: ManageApplicationAction;
   applicationId: string;
@@ -793,6 +805,7 @@ async function invokeManageApplication(params: {
   };
 }
 
+/** Load a single profile row or return null if it does not exist. */
 export async function fetchProfileById(id: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
@@ -808,6 +821,7 @@ export async function fetchProfileById(id: string): Promise<Profile | null> {
   return data ? toProfile(data) : null;
 }
 
+/** Persist profile updates while normalizing optional fields and auth metadata. */
 export async function updateProfile(
   payload: UpdateProfilePayload
 ): Promise<Profile> {
@@ -969,6 +983,7 @@ export async function updateProfile(
   return toProfile(data);
 }
 
+/** Send contact messages via the send-contact-message edge function. */
 export async function submitContactMessage(
   payload: ContactMessagePayload
 ): Promise<void> {
@@ -1018,14 +1033,16 @@ export async function submitContactMessage(
   }
 }
 
+/** List public events with optional pagination and graceful permission fallbacks. */
 export async function fetchEvents(
   filters: EventFilters = {}
 ): Promise<Event[] | PaginatedResponse<Event>> {
   await ensureExpiredEventsProcessed();
 
   const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? (filters.limit ?? 20);
-  const usePagination = filters.page !== undefined || filters.pageSize !== undefined;
+  const pageSize = filters.pageSize ?? filters.limit ?? 20;
+  const usePagination =
+    filters.page !== undefined || filters.pageSize !== undefined;
 
   const selectWithOrganization = `*,
         organization:profiles!events_organization_id_fkey(
@@ -1037,10 +1054,16 @@ export async function fetchEvents(
           type
         )`;
 
-  const applyFilters = (selectStatement: string, countMode: "exact" | "estimated" = "exact") => {
+  const applyFilters = (
+    selectStatement: string,
+    countMode: "exact" | "estimated" = "exact"
+  ) => {
     let query = supabase
       .from("events")
-      .select(selectStatement, countMode === "exact" ? { count: "exact" } : undefined)
+      .select(
+        selectStatement,
+        countMode === "exact" ? { count: "exact" } : undefined
+      )
       .order("date", { ascending: true });
 
     if (filters.status) {
@@ -1097,7 +1120,10 @@ export async function fetchEvents(
 
       if (usePagination) {
         // For fallback, we can't get exact count, so estimate
-        const estimatedTotal = events.length === pageSize ? page * pageSize + pageSize : page * pageSize;
+        const estimatedTotal =
+          events.length === pageSize
+            ? page * pageSize + pageSize
+            : page * pageSize;
         return {
           data: events,
           total: estimatedTotal,
@@ -1132,6 +1158,7 @@ export async function fetchEvents(
   return events;
 }
 
+/** Create or re-activate a volunteer application, then trigger notifications. */
 export async function applyToEvent(
   payload: ApplicationPayload
 ): Promise<Application> {
@@ -1200,6 +1227,7 @@ export async function applyToEvent(
   return application;
 }
 
+/** Read a single event, tolerating RLS by retrying without the organization join. */
 export async function fetchEventById(eventId: string): Promise<Event | null> {
   await ensureExpiredEventsProcessed();
 
@@ -1281,13 +1309,15 @@ export async function cancelApplication(
   return application;
 }
 
+/** Fetch volunteer applications with optional pagination for profile dashboards. */
 export async function fetchApplicationsByVolunteer(
   volunteerId: string,
   options?: { page?: number; pageSize?: number }
 ): Promise<Application[] | PaginatedResponse<Application>> {
   const page = options?.page ?? 1;
   const pageSize = options?.pageSize ?? 50;
-  const usePagination = options?.page !== undefined || options?.pageSize !== undefined;
+  const usePagination =
+    options?.page !== undefined || options?.pageSize !== undefined;
 
   let query = supabase
     .from("applications")
@@ -1323,6 +1353,7 @@ export async function fetchApplicationsByVolunteer(
   return applications;
 }
 
+/** Aggregate volunteer stats locally so dashboards stay responsive. */
 export async function fetchVolunteerStatistics(
   volunteerId: string
 ): Promise<VolunteerStatistics> {
@@ -1522,6 +1553,7 @@ export async function updateApplicationStatus(
   };
 }
 
+/** Validate payloads on the client before inserting a new event row. */
 export async function createEvent(payload: CreateEventPayload): Promise<Event> {
   const eventDate = new Date(payload.date);
   if (!Number.isFinite(eventDate.getTime())) {
@@ -1693,7 +1725,8 @@ export async function fetchOrganizationEvents(
 
   const page = options?.page ?? 1;
   const pageSize = options?.pageSize ?? 50;
-  const usePagination = options?.page !== undefined || options?.pageSize !== undefined;
+  const usePagination =
+    options?.page !== undefined || options?.pageSize !== undefined;
 
   let query = supabase
     .from("events")

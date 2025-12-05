@@ -1,3 +1,4 @@
+// Shared Google Maps configuration primitives used by the map explorer.
 export const GOOGLE_MAPS_LIBRARIES: ("places" | "drawing" | "geometry")[] = [
   "places",
   "drawing",
@@ -71,6 +72,7 @@ export const IDEALISTA_MAP_STYLE: google.maps.MapTypeStyle[] = [
   },
 ];
 
+// Fail fast when the API key isn't configured so developers catch it locally.
 export function getGoogleMapsApiKey(): string {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   if (!apiKey) {

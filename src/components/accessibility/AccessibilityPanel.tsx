@@ -1,3 +1,4 @@
+// Floating control center for toggling color palettes, typography, and assistive options.
 import { useEffect, useId, useMemo, useState } from "react";
 import {
   Accessibility,

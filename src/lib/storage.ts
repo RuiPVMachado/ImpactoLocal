@@ -1,5 +1,7 @@
 import { supabase } from "./supabase";
 
+// Client-side helpers for validated Supabase Storage uploads and cleanup.
+
 const DEFAULT_AVATAR_BUCKET = "avatars";
 const DEFAULT_EVENT_IMAGES_BUCKET = "event-images";
 const DEFAULT_APPLICATION_ATTACHMENTS_BUCKET = "application-attachments";
@@ -14,6 +16,7 @@ const APPLICATION_ATTACHMENTS_BUCKET =
   import.meta.env.VITE_SUPABASE_STORAGE_APPLICATION_ATTACHMENTS_BUCKET?.trim() ||
   DEFAULT_APPLICATION_ATTACHMENTS_BUCKET;
 
+// Buckets we are allowed to prune to avoid deleting foreign assets.
 const MANAGED_BUCKETS = new Set([
   AVATAR_BUCKET,
   EVENT_IMAGES_BUCKET,
@@ -53,6 +56,7 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
     "docx",
 };
 
+// Prefer crypto.randomUUID but fall back to Math.random for older browsers.
 function generateRandomId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     try {
@@ -79,6 +83,7 @@ function inferExtension(file: File): string {
   return FALLBACK_EXTENSION;
 }
 
+// Convert a public URL back into the bucket/path pair so we can delete it later.
 function parseStoragePublicUrl(
   publicUrl: string
 ): { bucket: string; path: string } | null {
@@ -99,6 +104,7 @@ function parseStoragePublicUrl(
   }
 }
 
+// Shared upload primitive that configures cache headers and returns the public URL.
 async function uploadToBucket(
   bucket: string,
   path: string,
@@ -231,6 +237,7 @@ export function getImageConstraintsDescription(): string {
   return `Formatos suportados: JPG, PNG, WEBP (até ${megabytes}MB).`;
 }
 
+// Upload heavier attachments to a dedicated bucket so avatar quotas stay intact.
 export async function uploadApplicationAttachment(params: {
   eventId: string;
   volunteerId: string;

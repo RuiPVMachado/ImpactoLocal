@@ -1,3 +1,4 @@
+// Ensures fetchEvents gracefully degrades when RLS prevents organization joins.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Event } from "../types";
 import type { PaginatedResponse } from "../lib/api";

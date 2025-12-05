@@ -1,3 +1,4 @@
+// Screen-reader live region fed by the accessibility context announcements API.
 import { useAccessibility } from "../../context/useAccessibility";
 
 export default function LiveAnnouncements() {

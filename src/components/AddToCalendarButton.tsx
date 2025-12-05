@@ -1,3 +1,4 @@
+// Reusable CTA that opens a pre-filled Google Calendar event for the given record.
 import type { MouseEvent } from "react";
 import { CalendarPlus, ExternalLink } from "lucide-react";
 import type { Event } from "../types";

@@ -1,3 +1,5 @@
+// Auth context wires Supabase session events, profile synchronization, and resilience helpers
+// (caching, retries, offline awareness) into a single provider for the UI.
 import {
   createContext,
   useEffect,
@@ -54,7 +56,9 @@ export const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
+// Runtime type guard for distinguishing Supabase PostgREST errors.
 function isPostgrestError(error: unknown): error is PostgrestError {
+  // Runtime type guard for distinguishing Supabase PostgREST errors.
   return (
     typeof error === "object" &&
     error !== null &&
@@ -98,7 +102,9 @@ interface CachedProfile {
   userId: string;
 }
 
+// Reads a cached profile from localStorage if it belongs to the same user and is still fresh.
 function getCachedProfile(userId: string): Profile | null {
+  // Reads a cached profile from localStorage if it belongs to the same user and is still fresh.
   if (typeof window === "undefined") return null;
 
   try {
@@ -134,7 +140,9 @@ function getCachedProfile(userId: string): Profile | null {
   }
 }
 
+// Persists the latest profile snapshot so refreshes feel instant.
 function setCachedProfile(userId: string, profile: Profile): void {
+  // Persists the latest profile snapshot so refreshes feel instant.
   if (typeof window === "undefined") return;
 
   try {
@@ -149,12 +157,16 @@ function setCachedProfile(userId: string, profile: Profile): void {
   }
 }
 
+// Drops any cached profile data (used on logout/error).
 function clearCachedProfile(): void {
+  // Drops any cached profile data (used on logout/error).
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(PROFILE_CACHE_KEY);
 }
 
+// Reads the ephemeral password-reset flag from session storage.
 function getInitialPasswordResetPending(): boolean {
+  // Reads the ephemeral password-reset flag from session storage.
   if (typeof window === "undefined") {
     return false;
   }
@@ -162,7 +174,9 @@ function getInitialPasswordResetPending(): boolean {
   return window.sessionStorage.getItem(PASSWORD_RESET_STORAGE_KEY) === "true";
 }
 
+// Normalizes Supabase auth metadata into the shape expected by the profiles table.
 function extractProfilePayloadFromUser(user: User): ProfileUpsertPayload {
+  // Normalizes Supabase auth metadata into the shape expected by the profiles table.
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
 
   const emailFromMetadata =
@@ -220,7 +234,9 @@ function extractProfilePayloadFromUser(user: User): ProfileUpsertPayload {
   };
 }
 
+// Builds a Profile stub directly from the auth user when the DB row is not available yet.
 function buildProfileFromAuthUser(user: User): Profile {
+  // Builds a Profile stub directly from the auth user when the DB row is not available yet.
   const payload = extractProfilePayloadFromUser(user);
   return {
     id: user.id,
@@ -242,11 +258,13 @@ function buildProfileFromAuthUser(user: User): Profile {
   };
 }
 
+// Simple exponential backoff wrapper to soften transient Supabase/network failures.
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
   initialDelay = 1000
 ): Promise<T> {
+  // Simple exponential backoff wrapper to soften transient Supabase/network failures.
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -277,11 +295,13 @@ async function retryWithBackoff<T>(
   throw lastError;
 }
 
+// Fetches a profile with timeout, caching, and optional retries to keep the UI responsive.
 async function safeFetchProfileById(
   userId: string,
   timeoutMs = 5000,
   useRetry = true
 ): Promise<Profile | null> {
+  // Fetches a profile with timeout, caching, and optional retries to keep the UI responsive.
   const timeoutPromise = new Promise<null>((resolve) => {
     setTimeout(() => resolve(null), timeoutMs);
   });
@@ -313,10 +333,12 @@ async function safeFetchProfileById(
   }
 }
 
+// Upserts a sanitized profile row so metadata stays consistent with auth.
 async function createProfileRecord(
   userId: string,
   payload: ProfileUpsertPayload
 ) {
+  // Upserts a sanitized profile row so metadata stays consistent with auth.
   const normalizeText = (value?: string | null): string | null => {
     if (typeof value !== "string") return null;
     const trimmed = value.trim();
@@ -380,7 +402,9 @@ async function createProfileRecord(
   if (error) throw error;
 }
 
+// Ensures the Supabase profile mirrors the auth metadata, returning the fresh row.
 async function syncProfileFromAuthUser(user: User): Promise<Profile | null> {
+  // Ensures the Supabase profile mirrors the auth metadata, returning the fresh row.
   const payload = extractProfilePayloadFromUser(user);
 
   try {
@@ -393,6 +417,10 @@ async function syncProfileFromAuthUser(user: User): Promise<Profile | null> {
   return safeFetchProfileById(user.id, 5000, false);
 }
 
+/**
+ * Centralizes authentication state: tracks Supabase sessions, profiles, online/offline
+ * status, password-reset flow, and exposes helpers for logging in/out or refreshing data.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);

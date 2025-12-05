@@ -28,6 +28,9 @@ import ColorAddSymbol, {
   type ColorAddBaseSymbol,
 } from "./accessibility/ColorAddSymbol";
 
+// Responsive navbar coordinating primary navigation, account menus, notifications,
+// and the ColorADD badge with careful mobile animation handling.
+
 const BRAND_COLORADD_CODES: ColorAddBaseSymbol[] = ["white", "yellow"];
 
 const DEFAULT_MOBILE_MENU_TRANSITION_MS = 260;
@@ -127,6 +130,7 @@ export default function Navbar() {
     };
   }, [isAccountMenuOpen]);
 
+  // Collapses the mobile drawer, optionally animating with different speeds.
   const closeMobileMenu = useCallback(
     (options?: { animated?: boolean; withSlowAnimation?: boolean }) => {
       const animated = options?.animated ?? true;
@@ -165,6 +169,7 @@ export default function Navbar() {
     []
   );
 
+  // Opens the mobile drawer, ensuring pending close timers are cleared first.
   const openMobileMenu = useCallback(() => {
     if (mobileMenuCloseTimeoutRef.current !== null) {
       window.clearTimeout(mobileMenuCloseTimeoutRef.current);
@@ -183,6 +188,7 @@ export default function Navbar() {
     };
   }, []);
 
+  // Utility to close any open menu (desktop or mobile) after navigation.
   const closeMenus = (options?: { animateMobile?: boolean }) => {
     if (options?.animateMobile) {
       closeMobileMenu();
@@ -193,6 +199,7 @@ export default function Navbar() {
     setIsAccountMenuOpen(false);
   };
 
+  // Terminates the Supabase session and resets local menu/UI state.
   const handleLogout = async () => {
     try {
       await logout();
@@ -272,6 +279,7 @@ export default function Navbar() {
     };
   }, [mobileMenuState, mobileMenuTransitionMs]);
 
+  // Toggles the mobile drawer, ensuring dropdown menus collapse first.
   const handleMobileMenuToggle = useCallback(() => {
     setIsMoreMenuOpen(false);
     setIsAccountMenuOpen(false);

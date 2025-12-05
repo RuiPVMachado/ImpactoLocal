@@ -1,6 +1,8 @@
 import type { Event } from "../types";
 import { getEventEndDate } from "./datetime";
 
+// Utilities for producing calendar-friendly timestamps and shareable URLs.
+
 const formatDateTimeUtc = (date: Date): string =>
   `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(
     2,
@@ -41,6 +43,7 @@ export const buildGoogleCalendarUrl = (
     locationOverride?: string;
   } = {}
 ): string | null => {
+  // Abort early if the event date can't be parsed; Google rejects invalid ranges.
   if (!hasValidEventDate(event)) {
     return null;
   }

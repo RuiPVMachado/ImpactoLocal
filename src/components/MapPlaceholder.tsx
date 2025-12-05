@@ -1,3 +1,4 @@
+// Lightweight map embed with fallbacks when lat/lng are missing.
 import { MapPin, Navigation } from "lucide-react";
 
 interface MapPlaceholderProps {

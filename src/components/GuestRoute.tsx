@@ -1,3 +1,4 @@
+// Mirror of ProtectedRoute that keeps authenticated users away from public-only pages.
 import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../context/useAuth";

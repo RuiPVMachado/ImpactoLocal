@@ -1,3 +1,4 @@
+// Shows ColorADD badge(s) when the accessibility setting toggles them on.
 import { useAccessibility } from "../../context/useAccessibility";
 
 export type ColorAddBaseSymbol = "blue" | "yellow" | "red" | "white" | "black";
@@ -26,7 +27,8 @@ export default function ColorAddSymbol({
     return null;
   }
 
-  const resolvedVariant = variant ?? (codes.includes("black") ? "dark" : "light");
+  const resolvedVariant =
+    variant ?? (codes.includes("black") ? "dark" : "light");
   const finalClassName = ["inline-block h-10 w-10", className]
     .filter(Boolean)
     .join(" ");

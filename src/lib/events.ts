@@ -1,3 +1,4 @@
+// Public events API surface, re-exported for nicer import ergonomics.
 export {
   fetchEvents,
   fetchEventById,
@@ -6,4 +7,4 @@ export {
   updateEvent,
   deleteEvent,
   type PaginatedResponse,
-} from './api';
+} from "./api";

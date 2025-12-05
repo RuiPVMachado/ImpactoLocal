@@ -1,5 +1,7 @@
 import { parseDurationToMinutes } from "./datetime";
 
+// Presentation helpers that keep duration strings consistent across the UI.
+
 export function formatDurationWithHours(duration?: string | null): string {
   const totalMinutes = parseDurationToMinutes(duration);
   if (totalMinutes <= 0) {

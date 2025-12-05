@@ -1,3 +1,4 @@
+// Accessible pagination control with optional page-size selector.
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface PaginationProps {
@@ -82,12 +83,16 @@ export default function Pagination({
   }
 
   return (
-    <div className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${className}`}>
+    <div
+      className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${className}`}
+    >
       <div className="flex items-center gap-4">
         <p className="text-sm text-gray-600">
-          Mostrando <span className="font-medium text-gray-900">{startItem}</span> a{" "}
+          Mostrando{" "}
+          <span className="font-medium text-gray-900">{startItem}</span> a{" "}
           <span className="font-medium text-gray-900">{endItem}</span> de{" "}
-          <span className="font-medium text-gray-900">{totalItems}</span> resultados
+          <span className="font-medium text-gray-900">{totalItems}</span>{" "}
+          resultados
         </p>
         {showPageSizeSelector && onPageSizeChange && (
           <div className="flex items-center gap-2">
@@ -97,7 +102,9 @@ export default function Pagination({
             <select
               id="page-size"
               value={pageSize}
-              onChange={(e) => onPageSizeChange(Number.parseInt(e.target.value, 10))}
+              onChange={(e) =>
+                onPageSizeChange(Number.parseInt(e.target.value, 10))
+              }
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
             >
               {pageSizeOptions.map((size) => (
@@ -170,4 +177,3 @@ export default function Pagination({
     </div>
   );
 }
-

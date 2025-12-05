@@ -1,5 +1,7 @@
 import { supabase } from "./supabase";
 
+// Wrapper around the send-notification edge function with typed payloads per scenario.
+
 export type NotificationResult = {
   success: boolean;
   error?: string;

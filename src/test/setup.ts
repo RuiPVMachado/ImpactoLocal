@@ -1,3 +1,4 @@
+// Global test setup that stubs Supabase and DOM APIs so specs run in isolation.
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 

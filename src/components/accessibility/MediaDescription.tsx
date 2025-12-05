@@ -1,3 +1,4 @@
+// Optional description/caption panel that can also narrate content via SpeechSynthesis.
 import { useEffect, useId, useRef } from "react";
 import { useAccessibility } from "../../context/useAccessibility";
 

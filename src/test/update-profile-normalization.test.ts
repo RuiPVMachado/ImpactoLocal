@@ -1,3 +1,4 @@
+// Ensures updateProfile sanitizes optional fields and persists normalized metadata.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type UpdateChain<Row> = {

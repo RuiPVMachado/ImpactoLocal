@@ -1,3 +1,4 @@
+// Regression tests for volunteer statistics aggregation (duration parsing, scaling).
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ApplicationStatus, Event } from "../types";
 

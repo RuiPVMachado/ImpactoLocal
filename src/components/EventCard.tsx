@@ -1,3 +1,4 @@
+// Rich preview card summarizing an event with schedule, location, and CTA hooks.
 import { Calendar, MapPin, Users, Clock, ArrowRight } from "lucide-react";
 import { getEventEndDate } from "../lib/datetime";
 import { formatDurationWithHours } from "../lib/formatters";

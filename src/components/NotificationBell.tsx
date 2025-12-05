@@ -1,3 +1,4 @@
+// Dropdown notification center that syncs with Supabase and auto-marks reads.
 import {
   useCallback,
   useEffect,
@@ -38,6 +39,7 @@ export default function NotificationBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, isAuthenticated]);
 
+  // Pulls fresh notifications for the authenticated user via Supabase.
   const loadNotifications = async () => {
     if (!user) return;
     setLoading(true);
@@ -52,6 +54,7 @@ export default function NotificationBell() {
     }
   };
 
+  // Marks every unread notification as read once the dropdown opens.
   const markAllAsRead = async () => {
     const unread = notifications.filter((notification) => !notification.read);
     if (unread.length === 0) return;
@@ -73,6 +76,7 @@ export default function NotificationBell() {
     }
   };
 
+  // Toggle dropdown visibility and lazily load + mark notifications.
   const handleToggle = async () => {
     if (!open && notifications.length === 0 && !loading && user) {
       await loadNotifications();
@@ -114,6 +118,7 @@ export default function NotificationBell() {
     };
   }, [open]);
 
+  // Selects the appropriate icon per notification type.
   const getNotificationIcon = (notification: Notification) => {
     if (notification.type === "application_approved") {
       return <CheckCircle2 className="h-4 w-4 text-brand-secondary" />;
@@ -126,6 +131,7 @@ export default function NotificationBell() {
     return <Info className="h-4 w-4 text-brand-secondary" />;
   };
 
+  // Provides copy overrides for common system messages.
   const renderMessage = (notification: Notification) => {
     if (notification.type === "application_rejected") {
       return "Já existe uma candidatura sua que foi rejeitada.";
@@ -134,6 +140,7 @@ export default function NotificationBell() {
     return notification.message;
   };
 
+  // Deduces which route (internal or external) should open for a notification.
   const resolveNotificationLink = useCallback(
     (notification: Notification) => {
       const link = notification.link?.trim();
@@ -169,6 +176,7 @@ export default function NotificationBell() {
     return null;
   }
 
+  // Marks the clicked notification as read and navigates to its destination.
   const handleNotificationClick = (notification: Notification) => {
     setNotifications((current) =>
       current.map((item) =>

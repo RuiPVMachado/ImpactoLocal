@@ -9,6 +9,10 @@ interface ProtectedRouteProps {
   redirectTo?: string;
 }
 
+/**
+ * Guards child routes by waiting for auth state, redirecting anonymous users,
+ * enforcing password-reset flow, and optionally filtering by user role.
+ */
 export default function ProtectedRoute({
   children,
   allowedRoles,
@@ -17,6 +21,7 @@ export default function ProtectedRoute({
   const { user, loading, passwordResetPending } = useAuth();
   const location = useLocation();
 
+  // Keep the page skeleton accessible until the auth state resolves.
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -25,12 +30,14 @@ export default function ProtectedRoute({
     );
   }
 
+  // Bounce anonymous visitors to the desired entry point.
   if (!user) {
     return (
       <Navigate to={redirectTo} state={{ from: location.pathname }} replace />
     );
   }
 
+  // Force users to finish resetting their password before hitting other pages.
   if (passwordResetPending && location.pathname !== "/reset-password") {
     return (
       <Navigate
@@ -41,6 +48,7 @@ export default function ProtectedRoute({
     );
   }
 
+  // Deny access when the current role is outside the allowed list.
   if (allowedRoles && !allowedRoles.includes(user.type)) {
     return <Navigate to="/" replace />;
   }

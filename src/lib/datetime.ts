@@ -1,3 +1,5 @@
+// Date/time helpers focused on handling browser-local inputs and free-form durations.
+
 export function getLocalDateTimeInputValue(date: Date): string {
   const time = date.getTime();
   if (!Number.isFinite(time)) {
@@ -15,6 +17,7 @@ export function getNowLocalDateTimeInputValue(): string {
 
 export const MIN_EVENT_START_LEEWAY_MS = 60_000;
 
+// Accepts multiple duration formats ("1h30", "90m", "1:30") to keep forms forgiving.
 export function parseDurationToMinutes(duration?: string | null): number {
   if (!duration) {
     return 0;

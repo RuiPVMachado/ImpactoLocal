@@ -1,3 +1,5 @@
+// Accessibility context centralizes user preference state (color, typography, assistive toggles)
+// so the rest of the UI can stay declarative.
 import {
   createContext,
   useCallback,
@@ -64,6 +66,7 @@ const AccessibilityContext = createContext<AccessibilityContextValue | null>(
 
 const prefersDarkQuery = "(prefers-color-scheme: dark)";
 
+// Reads persisted accessibility preferences while falling back to defaults.
 const parseStoredSettings = () => {
   if (typeof window === "undefined") {
     return defaultSettings;
@@ -81,6 +84,7 @@ const parseStoredSettings = () => {
   }
 };
 
+// Syncs the current settings into document-level CSS variables and data attributes.
 const applyDocumentPreferences = (
   settings: AccessibilitySettings,
   resolvedColorMode: Exclude<ColorMode, "auto">
@@ -109,6 +113,10 @@ const applyDocumentPreferences = (
   );
 };
 
+/**
+ * Hosts accessibility preferences and live-region helpers so any component can
+ * react to user customization (color mode, typography, announcements, etc.).
+ */
 export function AccessibilityProvider({ children }: PropsWithChildren) {
   const [settings, setSettings] = useState<AccessibilitySettings>(() =>
     parseStoredSettings()
@@ -163,6 +171,7 @@ export function AccessibilityProvider({ children }: PropsWithChildren) {
     }
   }, [settings.colorMode]);
 
+  // Generic helper to update one accessibility control at a time.
   const updateSetting = useCallback(
     <K extends keyof AccessibilitySettings>(
       key: K,
@@ -173,6 +182,7 @@ export function AccessibilityProvider({ children }: PropsWithChildren) {
     []
   );
 
+  // Restores the default profile and recalculates color mode from media query.
   const resetSettings = useCallback(() => {
     setSettings(defaultSettings);
     setResolvedColorMode(() => {
@@ -186,6 +196,7 @@ export function AccessibilityProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
+  // Pushes short-lived messages into the live region for screen readers.
   const announce = useCallback((message: string) => {
     setLiveMessage(message);
     if (announcementTimeoutRef.current) {

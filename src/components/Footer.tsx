@@ -1,3 +1,4 @@
+// Site-wide footer with navigation shortcuts, contact info, and ColorADD cues.
 import { Link } from "react-router-dom";
 import {
   MapPin,
@@ -189,7 +190,6 @@ export default function Footer() {
             </div>
           </div>
         </div>
-
       </div>
     </footer>
   );

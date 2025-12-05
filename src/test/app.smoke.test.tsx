@@ -1,3 +1,4 @@
+// High-level smoke test for the public app shell (navbar, routing, auth stubs).
 import { render, screen, within, waitFor } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
