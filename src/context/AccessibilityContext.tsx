@@ -28,6 +28,7 @@ export interface AccessibilitySettings {
   paragraphSpacing: number;
   audioDescriptions: boolean;
   captions: boolean;
+  colorAddSymbols: boolean;
 }
 
 interface AccessibilityContextValue {
@@ -54,6 +55,7 @@ const defaultSettings: AccessibilitySettings = {
   paragraphSpacing: 1,
   audioDescriptions: false,
   captions: false,
+  colorAddSymbols: false,
 };
 
 const AccessibilityContext = createContext<AccessibilityContextValue | null>(
@@ -91,6 +93,7 @@ const applyDocumentPreferences = (
   root.dataset.colorMode = resolvedColorMode;
   root.dataset.colorPalette = settings.colorPalette;
   root.dataset.fontStyle = settings.fontStyle;
+  root.dataset.colorAddSymbols = settings.colorAddSymbols ? "on" : "off";
   root.style.setProperty("--text-scale", settings.textScale.toString());
   root.style.setProperty(
     "--line-height-scale",

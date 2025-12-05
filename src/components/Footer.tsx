@@ -7,6 +7,11 @@ import {
   Instagram,
   Linkedin,
 } from "lucide-react";
+import ColorAddSymbol, {
+  type ColorAddBaseSymbol,
+} from "./accessibility/ColorAddSymbol";
+
+const BRAND_COLORADD_CODES: ColorAddBaseSymbol[] = ["black", "blue", "yellow"];
 
 export default function Footer() {
   return (
@@ -108,9 +113,17 @@ export default function Footer() {
           </div>
 
           <div className="border-t border-white/10 pt-8 md:border-t-0 md:pt-0">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white">
-              Contacto
-            </h3>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-white">
+                Contacto
+              </h3>
+              <ColorAddSymbol
+                codes={BRAND_COLORADD_CODES}
+                ariaLabel="Cor principal do ImpactoLocal identificada em ColorADD"
+                className="hidden sm:inline-flex"
+                variant="dark"
+              />
+            </div>
             <ul className="space-y-4 text-sm">
               <li className="flex items-start gap-3 text-white">
                 <Mail className="h-4 w-4 text-white" />
@@ -176,6 +189,7 @@ export default function Footer() {
             </div>
           </div>
         </div>
+
       </div>
     </footer>
   );

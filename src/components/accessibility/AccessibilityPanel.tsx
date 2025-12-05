@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import {
   Accessibility,
   Droplets,
+  Palette,
   Headphones,
   RefreshCw,
   SunMoon,
@@ -70,7 +71,7 @@ export default function AccessibilityPanel() {
   };
 
   const handleToggle = (
-    key: "audioDescriptions" | "captions",
+    key: "audioDescriptions" | "captions" | "colorAddSymbols",
     label: string
   ) => {
     updateSetting(key, !settings[key]);
@@ -209,6 +210,26 @@ export default function AccessibilityPanel() {
                   </label>
                 ))}
               </div>
+            </fieldset>
+
+            <fieldset className="rounded-2xl border border-brand-secondary/20 p-3">
+              <legend className="flex items-center gap-2 text-sm font-semibold text-brand-secondary">
+                <Palette className="h-4 w-4" aria-hidden="true" /> Código
+                ColorADD
+              </legend>
+              <p className="mt-2 text-xs text-brand-neutral/80">
+                Identifica as principais cores institucionais com os símbolos
+                oficiais (Azul, Amarelo, Vermelho, Branco, Preto) e as suas
+                combinações para tons como verde, laranja ou roxo.
+              </p>
+              <ToggleRow
+                label="Mostrar símbolos ColorADD"
+                description="Apresenta a legenda das cores no cabeçalho, rodapé e componentes críticos"
+                active={settings.colorAddSymbols}
+                onToggle={() =>
+                  handleToggle("colorAddSymbols", "Símbolos ColorADD")
+                }
+              />
             </fieldset>
 
             <fieldset className="rounded-2xl border border-brand-secondary/20 p-3">

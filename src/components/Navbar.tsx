@@ -24,6 +24,11 @@ import {
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 import NotificationBell from "./NotificationBell";
+import ColorAddSymbol, {
+  type ColorAddBaseSymbol,
+} from "./accessibility/ColorAddSymbol";
+
+const BRAND_COLORADD_CODES: ColorAddBaseSymbol[] = ["white", "yellow"];
 
 const DEFAULT_MOBILE_MENU_TRANSITION_MS = 260;
 const SCROLL_MOBILE_MENU_TRANSITION_MS = 480;
@@ -293,9 +298,15 @@ export default function Navbar() {
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-secondary/10">
                 <MapPin className="h-6 w-6 text-brand-secondary" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">
-                <span className="text-brand-primary">Impacto</span>
-                <span>Local</span>
+              <span className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <span>
+                  <span className="text-brand-primary">Impacto</span>
+                  <span>Local</span>
+                </span>
+                <ColorAddSymbol
+                  codes={BRAND_COLORADD_CODES}
+                  ariaLabel="Cor principal identificada em ColorADD"
+                />
               </span>
             </Link>
 

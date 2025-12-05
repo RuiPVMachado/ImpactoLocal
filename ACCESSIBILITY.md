@@ -22,6 +22,13 @@ Esta plataforma inclui controlos básicos de acessibilidade focados em preferên
 
 - **Descrições de áudio / legendas**: O painel disponibiliza dois _toggles_. Quando ativados, o componente `MediaDescription` exibe texto descritivo dos elementos visuais (e liga a locução via `speechSynthesis`) e as páginas preferem conteúdos legendados quando existirem.
 
+### Código ColorADD
+
+- O _toggle_ **"Mostrar símbolos ColorADD"** acrescenta `data-color-add-symbols="on"` ao `documentElement` e expõe o glifo oficial do sistema ColorADD (inspirado em [coloradd.net](https://www.coloradd.net)) junto do branding.
+- Utilize `ColorAddSymbol` (`src/components/accessibility/ColorAddSymbol.tsx`) passando o array `codes` com os símbolos base necessários (ex.: `['blue','yellow']` para representar o verde institucional). O componente apenas renderiza o ícone sem texto adicional, cumprindo a convenção pedida.
+- `Navbar` e `Footer` já importam o glifo para destacar a cor principal; repita o padrão em novas secções quando quiser sinalizar o tom dominante.
+- Os assets oficiais residem em `public/coloradd-light.png` e `public/coloradd-dark.png`; o componente seleciona automaticamente o ficheiro adequado (ou pode ser forçado através da prop `variant`).
+
 ## Estrutura e Navegação
 
 - Nova _skip link_ `Saltar para o conteúdo principal`.
