@@ -9,6 +9,7 @@ ImpactoLocal é uma plataforma web que facilita a conexão entre pessoas que que
 - **Para Voluntários**: Descobrir eventos de voluntariado, candidatar-se e gerir as suas participações
 - **Para Organizações**: Criar e gerir eventos, recrutar voluntários e coordenar atividades
 - **Para Todos**: Promover o voluntariado e criar impacto social positivo
+- **Acessibilidade integrada**: Painel dedicado com modos de cor, tipografia ajustável, live region e descrições multimédia detalhadas (ver secção "Acessibilidade" abaixo e [`ACCESSIBILITY.md`](./ACCESSIBILITY.md)).
 
 ## Status Atual
 
@@ -80,7 +81,19 @@ npm run build      # Build para produção
 npm run preview    # Preview do build
 npm run lint       # Executa ESLint
 npm run typecheck  # Verifica tipos TypeScript
+npm run test       # Executa a suíte de testes (Vitest)
 ```
+
+## Testes Automatizados
+
+- A suíte completa é executada com `npm run test` (Vitest + ambiente JSDOM).
+- Os testes cobrem fluxos de UI, normalização de dados e camadas de API mockadas.
+- Detalhes sobre cada ficheiro de teste e cenários de stress encontram-se em [`TESTING.md`](./TESTING.md).
+
+## Base de Dados
+
+- O schema completo (tabelas, políticas RLS, triggers, views e buckets de storage) está documentado em [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md).
+- Inclui também notas sobre migrations Supabase, seeds de desenvolvimento e considerações de segurança para RLS, índices e gestão de credenciais.
 
 ## Features Principais
 
@@ -114,7 +127,6 @@ npm run typecheck  # Verifica tipos TypeScript
 - ✅ Google Maps integration (mapa interativo com filtros avançados)
 - ✅ Email notifications (envio automático ao aprovar voluntários)
 - 🚧 Sistema de reviews
-- 🚧 Gamification
 - 🚧 Mobile app
 - 🚧 Multi-language
 
