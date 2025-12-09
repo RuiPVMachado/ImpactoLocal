@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 
-// Client-side helpers for validated Supabase Storage uploads and cleanup.
+/**
+ * Client-side helpers for validated Supabase Storage uploads and cleanup.
+ */
 
 const DEFAULT_AVATAR_BUCKET = "avatars";
 const DEFAULT_EVENT_IMAGES_BUCKET = "event-images";
@@ -56,7 +58,11 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
     "docx",
 };
 
-// Prefer crypto.randomUUID but fall back to Math.random for older browsers.
+/**
+ * Generates a random ID for file names.
+ * Uses crypto.randomUUID if available, otherwise falls back to Math.random.
+ * @returns A random string ID.
+ */
 function generateRandomId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     try {
@@ -68,6 +74,11 @@ function generateRandomId(): string {
   return Math.random().toString(36).slice(2, 12);
 }
 
+/**
+ * Infers the file extension from the file type or name.
+ * @param file The file object.
+ * @returns The inferred extension (e.g., "jpg", "pdf").
+ */
 function inferExtension(file: File): string {
   const mimeExtension = MIME_EXTENSION_MAP[file.type];
   if (mimeExtension) {
@@ -83,7 +94,11 @@ function inferExtension(file: File): string {
   return FALLBACK_EXTENSION;
 }
 
-// Convert a public URL back into the bucket/path pair so we can delete it later.
+/**
+ * Parses a public URL to extract the bucket and path.
+ * @param publicUrl The public URL of the file.
+ * @returns An object containing the bucket and path, or null if parsing fails.
+ */
 function parseStoragePublicUrl(
   publicUrl: string
 ): { bucket: string; path: string } | null {

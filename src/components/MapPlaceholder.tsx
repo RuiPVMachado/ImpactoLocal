@@ -1,12 +1,22 @@
 // Lightweight map embed with fallbacks when lat/lng are missing.
 import { MapPin, Navigation } from "lucide-react";
 
+/**
+ * Props for the MapPlaceholder component.
+ */
 interface MapPlaceholderProps {
+  /** The address to display or search for. */
   address: string;
+  /** Optional latitude coordinate. */
   lat?: number;
+  /** Optional longitude coordinate. */
   lng?: number;
 }
 
+/**
+ * A component that displays a map embed or a placeholder if coordinates are missing.
+ * Provides links to open the location in Google Maps.
+ */
 export default function MapPlaceholder({
   address,
   lat,

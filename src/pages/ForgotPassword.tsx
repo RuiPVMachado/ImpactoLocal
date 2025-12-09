@@ -4,6 +4,10 @@ import { Mail, ArrowLeft, Heart } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 
+/**
+ * The Forgot Password page component.
+ * Allows users to request a password reset email.
+ */
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const { resetPassword, authLoading } = useAuth();

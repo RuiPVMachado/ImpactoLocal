@@ -13,6 +13,10 @@ import { useAuth } from "../context/useAuth";
 import { fetchNotifications, markNotificationsAsRead } from "../lib/api";
 import type { Notification } from "../types";
 
+/**
+ * A notification bell component that displays a dropdown of user notifications.
+ * It fetches notifications from the backend and marks them as read when opened.
+ */
 export default function NotificationBell() {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();

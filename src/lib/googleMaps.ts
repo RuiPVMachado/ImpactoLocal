@@ -1,19 +1,33 @@
-// Shared Google Maps configuration primitives used by the map explorer.
+/**
+ * Shared Google Maps configuration primitives used by the map explorer.
+ */
 export const GOOGLE_MAPS_LIBRARIES: ("places" | "drawing" | "geometry")[] = [
   "places",
   "drawing",
   "geometry",
 ];
 
+/**
+ * Default center coordinates for the map (Porto, Portugal).
+ */
 export const DEFAULT_MAP_CENTER = {
   lat: 41.1579, // Porto, Portugal
   lng: -8.6291,
 };
 
+/**
+ * Default search radius in meters (15km).
+ */
 export const DEFAULT_SEARCH_RADIUS_METERS = 15000; // 15km radius by default
 
+/**
+ * Default zoom level for the map.
+ */
 export const DEFAULT_MAP_ZOOM = 12;
 
+/**
+ * Custom map style inspired by Idealista.
+ */
 export const IDEALISTA_MAP_STYLE: google.maps.MapTypeStyle[] = [
   {
     featureType: "administrative",
@@ -72,7 +86,11 @@ export const IDEALISTA_MAP_STYLE: google.maps.MapTypeStyle[] = [
   },
 ];
 
-// Fail fast when the API key isn't configured so developers catch it locally.
+/**
+ * Retrieves the Google Maps API key from environment variables.
+ * Throws an error if the key is missing.
+ * @returns The Google Maps API key.
+ */
 export function getGoogleMapsApiKey(): string {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   if (!apiKey) {

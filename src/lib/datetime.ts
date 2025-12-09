@@ -1,5 +1,10 @@
 // Date/time helpers focused on handling browser-local inputs and free-form durations.
 
+/**
+ * Formats a Date object into a string suitable for `datetime-local` input fields.
+ * @param date The date to format.
+ * @returns The formatted date string (YYYY-MM-DDTHH:mm).
+ */
 export function getLocalDateTimeInputValue(date: Date): string {
   const time = date.getTime();
   if (!Number.isFinite(time)) {
@@ -11,13 +16,22 @@ export function getLocalDateTimeInputValue(date: Date): string {
   return local.toISOString().slice(0, 16);
 }
 
+/**
+ * Gets the current date and time formatted for `datetime-local` input fields.
+ * @returns The current date and time string.
+ */
 export function getNowLocalDateTimeInputValue(): string {
   return getLocalDateTimeInputValue(new Date());
 }
 
 export const MIN_EVENT_START_LEEWAY_MS = 60_000;
 
-// Accepts multiple duration formats ("1h30", "90m", "1:30") to keep forms forgiving.
+/**
+ * Parses a duration string into total minutes.
+ * Supports formats like "1h30", "90m", "1:30", "1 hour 30 mins".
+ * @param duration The duration string to parse.
+ * @returns The total duration in minutes.
+ */
 export function parseDurationToMinutes(duration?: string | null): number {
   if (!duration) {
     return 0;
@@ -76,6 +90,12 @@ export function parseDurationToMinutes(duration?: string | null): number {
   return 0;
 }
 
+/**
+ * Normalizes hours and minutes, handling overflow of minutes into hours.
+ * @param hoursInput The input hours.
+ * @param minutesInput The input minutes.
+ * @returns An object containing normalized hours and minutes.
+ */
 export function normalizeDurationParts(
   hoursInput: number,
   minutesInput: number
@@ -96,6 +116,12 @@ export function normalizeDurationParts(
   };
 }
 
+/**
+ * Formats duration parts into a human-readable string.
+ * @param hoursInput The hours part.
+ * @param minutesInput The minutes part.
+ * @returns The formatted duration string (e.g., "1h 30m").
+ */
 export function formatDurationFromParts(
   hoursInput: number,
   minutesInput: number

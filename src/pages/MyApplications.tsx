@@ -14,7 +14,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { cancelApplication, fetchApplicationsByVolunteer, type PaginatedResponse } from "../lib/api";
+import {
+  cancelApplication,
+  fetchApplicationsByVolunteer,
+  type PaginatedResponse,
+} from "../lib/api";
 import { useAuth } from "../context/useAuth";
 import { getApplicationAttachmentSignedUrl } from "../lib/storage";
 import type { Application } from "../types";
@@ -68,8 +72,13 @@ const formatDate = (iso?: string | null) => {
   });
 };
 
+/**
+ * The My Applications page component.
+ * Displays a list of volunteer applications submitted by the user.
+ * Allows users to view status and cancel applications.
+ */
 export default function MyApplications() {
-  const { user, loading: authInitialising } = useAuth();
+  const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -78,7 +87,8 @@ export default function MyApplications() {
   >(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [pagination, setPagination] = useState<PaginatedResponse<Application> | null>(null);
+  const [pagination, setPagination] =
+    useState<PaginatedResponse<Application> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -98,7 +108,7 @@ export default function MyApplications() {
           page: currentPage,
           pageSize,
         });
-        
+
         if (active) {
           if (Array.isArray(result)) {
             setApplications(result);
@@ -249,158 +259,162 @@ export default function MyApplications() {
           <>
             <div className="space-y-6 mb-8">
               {sortedApplications.map((application) => {
-              const status = statusConfig[application.status];
-              const StatusIcon = status.icon;
-              const event = application.event;
+                const status = statusConfig[application.status];
+                const StatusIcon = status.icon;
+                const event = application.event;
 
-              return (
-                <article
-                  key={application.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
-                >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${status.color}`}
-                        >
-                          <StatusIcon className="h-4 w-4" />
-                          {status.label}
-                        </span>
-                      </div>
-                      <h2 className="mt-4 text-2xl font-semibold text-slate-900">
-                        {event?.title ?? "Evento de voluntariado"}
-                      </h2>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {event?.organization?.name ??
-                          "Organização desconhecida"}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-start gap-3 text-sm text-slate-500 md:items-end">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-slate-400" />
-                        <span>{formatDate(event?.date)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-slate-400" />
-                        <span>
-                          Candidatou-se em {formatDate(application.appliedAt)}
-                        </span>
-                      </div>
-                      {event?.location?.address && (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-slate-400" />
-                          <span>{event.location.address}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-sm font-semibold text-slate-700">
-                        Resumo do evento
-                      </p>
-                      <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                        <li className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-slate-400" />
-                          <span>
-                            {event?.volunteersRegistered ?? 0} de{" "}
-                            {event?.volunteersNeeded ?? "—"} voluntários
-                            confirmados
+                return (
+                  <article
+                    key={application.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${status.color}`}
+                          >
+                            <StatusIcon className="h-4 w-4" />
+                            {status.label}
                           </span>
-                        </li>
-                        {event?.category && (
-                          <li className="flex items-center gap-2">
-                            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                            <span>{event.category}</span>
-                          </li>
+                        </div>
+                        <h2 className="mt-4 text-2xl font-semibold text-slate-900">
+                          {event?.title ?? "Evento de voluntariado"}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {event?.organization?.name ??
+                            "Organização desconhecida"}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-start gap-3 text-sm text-slate-500 md:items-end">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-slate-400" />
+                          <span>{formatDate(event?.date)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-slate-400" />
+                          <span>
+                            Candidatou-se em {formatDate(application.appliedAt)}
+                          </span>
+                        </div>
+                        {event?.location?.address && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-slate-400" />
+                            <span>{event.location.address}</span>
+                          </div>
                         )}
-                      </ul>
+                      </div>
                     </div>
 
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-sm font-semibold text-slate-700">
-                        Estado da candidatura
-                      </p>
-                      <p className="mt-3 text-sm text-slate-600">
-                        {status.description}
-                      </p>
-
-                      {application.message && (
-                        <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
-                          "{application.message}"
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-700">
+                          Resumo do evento
                         </p>
-                      )}
-
-                      {application.attachmentPath && (
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadAttachment(application)}
-                          disabled={downloadingAttachmentId === application.id}
-                          className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Download className="h-4 w-4" />
-                          {downloadingAttachmentId === application.id
-                            ? "A preparar ficheiro..."
-                            : application.attachmentName
-                            ? `Visualizar ${application.attachmentName}`
-                            : "Visualizar ficheiro"}
-                        </button>
-                      )}
-
-                      {application.status === "approved" && (
-                        <div className="mt-3 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                          <p>
-                            Será contactado(a) pela organização com mais
-                            detalhes brevemente. Exporta o evento para o teu
-                            calendário para não esqueceres.
-                          </p>
-                          {application.event && (
-                            <div className="mt-3">
-                              <AddToCalendarButton
-                                event={application.event}
-                                size="sm"
-                                variant="ghost"
-                                label="Adicionar ao calendário"
-                              />
-                            </div>
+                        <ul className="mt-3 space-y-2 text-sm text-slate-600">
+                          <li className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-slate-400" />
+                            <span>
+                              {event?.volunteersRegistered ?? 0} de{" "}
+                              {event?.volunteersNeeded ?? "—"} voluntários
+                              confirmados
+                            </span>
+                          </li>
+                          {event?.category && (
+                            <li className="flex items-center gap-2">
+                              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                              <span>{event.category}</span>
+                            </li>
                           )}
-                        </div>
-                      )}
+                        </ul>
+                      </div>
 
-                      {application.status === "pending" && (
-                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="text-sm text-slate-600">
-                            Pode cancelar a candidatura enquanto estiver
-                            pendente.
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-700">
+                          Estado da candidatura
+                        </p>
+                        <p className="mt-3 text-sm text-slate-600">
+                          {status.description}
+                        </p>
+
+                        {application.message && (
+                          <p className="mt-3 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-700">
+                            "{application.message}"
                           </p>
+                        )}
+
+                        {application.attachmentPath && (
                           <button
                             type="button"
-                            onClick={() => handleCancel(application.id)}
-                            disabled={cancellingId === application.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() =>
+                              handleDownloadAttachment(application)
+                            }
+                            disabled={
+                              downloadingAttachmentId === application.id
+                            }
+                            className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <X className="h-4 w-4" />
-                            {cancellingId === application.id
-                              ? "A cancelar..."
-                              : "Cancelar candidatura"}
+                            <Download className="h-4 w-4" />
+                            {downloadingAttachmentId === application.id
+                              ? "A preparar ficheiro..."
+                              : application.attachmentName
+                              ? `Visualizar ${application.attachmentName}`
+                              : "Visualizar ficheiro"}
                           </button>
-                        </div>
-                      )}
-                      {application.status === "cancelled" && (
-                        <p className="mt-3 rounded-lg bg-slate-200/70 px-4 py-3 text-sm text-slate-700">
-                          Cancelou esta candidatura. Se o evento ainda estiver
-                          disponível, pode candidatar-se novamente a partir da
-                          página do evento.
-                        </p>
-                      )}
+                        )}
+
+                        {application.status === "approved" && (
+                          <div className="mt-3 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                            <p>
+                              Será contactado(a) pela organização com mais
+                              detalhes brevemente. Exporta o evento para o teu
+                              calendário para não esqueceres.
+                            </p>
+                            {application.event && (
+                              <div className="mt-3">
+                                <AddToCalendarButton
+                                  event={application.event}
+                                  size="sm"
+                                  variant="ghost"
+                                  label="Adicionar ao calendário"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {application.status === "pending" && (
+                          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-slate-600">
+                              Pode cancelar a candidatura enquanto estiver
+                              pendente.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleCancel(application.id)}
+                              disabled={cancellingId === application.id}
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <X className="h-4 w-4" />
+                              {cancellingId === application.id
+                                ? "A cancelar..."
+                                : "Cancelar candidatura"}
+                            </button>
+                          </div>
+                        )}
+                        {application.status === "cancelled" && (
+                          <p className="mt-3 rounded-lg bg-slate-200/70 px-4 py-3 text-sm text-slate-700">
+                            Cancelou esta candidatura. Se o evento ainda estiver
+                            disponível, pode candidatar-se novamente a partir da
+                            página do evento.
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              })}
             </div>
             {pagination && (
               <div className="bg-white rounded-lg shadow-md p-6">

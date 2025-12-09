@@ -3,11 +3,20 @@ import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../context/useAuth";
 
+/**
+ * Props for the GuestRoute component.
+ */
 interface GuestRouteProps {
+  /** The content to render if the user is not authenticated. */
   children: ReactNode;
+  /** The path to redirect to if the user is authenticated (default: "/"). */
   redirectTo?: string;
 }
 
+/**
+ * A wrapper component for routes that should only be accessible to unauthenticated users.
+ * Redirects authenticated users to the specified path or the page they came from.
+ */
 export default function GuestRoute({
   children,
   redirectTo = "/",

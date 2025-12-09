@@ -1,5 +1,13 @@
 import { Heart, Target, Users, Award, Sparkles, Globe } from "lucide-react";
 
+/**
+ * SobreNos page component.
+ *
+ * Displays information about the "Impacto Local" platform, its mission, and values.
+ * Static informational page.
+ *
+ * @returns {JSX.Element} The rendered SobreNos page.
+ */
 export default function SobreNos() {
   return (
     <div className="min-h-screen bg-brand-background">

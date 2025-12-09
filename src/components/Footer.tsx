@@ -14,6 +14,10 @@ import ColorAddSymbol, {
 
 const BRAND_COLORADD_CODES: ColorAddBaseSymbol[] = ["black", "blue", "yellow"];
 
+/**
+ * The site-wide footer component.
+ * Contains navigation links, contact information, social media links, and accessibility symbols.
+ */
 export default function Footer() {
   return (
     <footer

@@ -32,6 +32,9 @@ import {
   validateImageFile,
 } from "../lib/storage";
 
+/**
+ * State for the profile form.
+ */
 type ProfileFormState = {
   name: string;
   phone: string;
@@ -80,6 +83,15 @@ const buildFormStateFromProfile = (
   };
 };
 
+/**
+ * Profile page component.
+ *
+ * Allows users (volunteers and organizations) to view and edit their profile information.
+ * Handles form state, validation, and submission for profile updates.
+ * Displays different form fields based on the user's role.
+ *
+ * @returns {JSX.Element} The rendered Profile page.
+ */
 export default function Profile() {
   const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();

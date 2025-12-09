@@ -26,6 +26,14 @@ type RecapUpload = {
   previewUrl: string;
 };
 
+/**
+ * ShareEventRecap page component.
+ *
+ * Allows organizations to share a recap of a past event.
+ * Users can upload images and write a summary of the event.
+ *
+ * @returns {JSX.Element} The rendered ShareEventRecap page.
+ */
 export default function ShareEventRecap() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

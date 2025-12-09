@@ -6,6 +6,10 @@ import { fetchEvents } from "../lib/events";
 import type { Event } from "../types";
 import MediaDescription from "../components/accessibility/MediaDescription";
 
+/**
+ * The Home page component.
+ * Displays the landing page with featured events and a call to action.
+ */
 export default function Home() {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);

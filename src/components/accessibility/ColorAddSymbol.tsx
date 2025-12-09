@@ -3,10 +3,17 @@ import { useAccessibility } from "../../context/useAccessibility";
 
 export type ColorAddBaseSymbol = "blue" | "yellow" | "red" | "white" | "black";
 
+/**
+ * Props for the ColorAddSymbol component.
+ */
 interface ColorAddSymbolProps {
+  /** The color codes to display symbols for. */
   codes: ColorAddBaseSymbol[];
+  /** Accessible label for the symbol image. */
   ariaLabel?: string;
+  /** Optional CSS classes. */
   className?: string;
+  /** The visual variant (light or dark) for the symbol. */
   variant?: "light" | "dark";
 }
 
@@ -15,6 +22,10 @@ const ICON_PATH = {
   dark: "/coloradd-dark.png",
 } as const;
 
+/**
+ * Displays ColorADD symbols for color identification assistance.
+ * Only renders if the `colorAddSymbols` accessibility setting is enabled.
+ */
 export default function ColorAddSymbol({
   codes,
   ariaLabel = "Cor principal identificada via ColorADD",

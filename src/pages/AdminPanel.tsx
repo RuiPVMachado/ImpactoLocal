@@ -23,8 +23,16 @@ import {
 } from "../lib/admin";
 import type { AdminMetrics, Event, Profile, UserRole } from "../types";
 
+/**
+ * Key for the active tab in the admin panel.
+ */
 type TabKey = "users" | "organizations" | "events";
 
+/**
+ * Formats an ISO date string into a human-readable date.
+ * @param iso The ISO date string.
+ * @returns The formatted date string or "—" if invalid.
+ */
 const formatDate = (iso?: string | null) => {
   if (!iso) return "—";
   const date = new Date(iso);
@@ -36,6 +44,11 @@ const formatDate = (iso?: string | null) => {
   });
 };
 
+/**
+ * Converts an ISO date string to a value suitable for `datetime-local` inputs.
+ * @param iso The ISO date string.
+ * @returns The formatted string for input or empty string if invalid.
+ */
 const toDateTimeLocalValue = (iso?: string | null) => {
   if (!iso) return "";
   const date = new Date(iso);
@@ -45,6 +58,11 @@ const toDateTimeLocalValue = (iso?: string | null) => {
   return local.toISOString().slice(0, 16);
 };
 
+/**
+ * Converts a `datetime-local` input value to an ISO string.
+ * @param value The input value.
+ * @returns The ISO string or null if invalid.
+ */
 const fromDateTimeLocalValue = (value: string) => {
   if (!value) return null;
   const date = new Date(value);

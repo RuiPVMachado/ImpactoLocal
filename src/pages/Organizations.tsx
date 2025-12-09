@@ -12,6 +12,11 @@ type FilterOption = {
 
 const ALL_OPTION: FilterOption = { label: "Todas", value: "all" };
 
+/**
+ * The Organizations page component.
+ * Displays a directory of all registered organizations.
+ * Allows filtering by category and city.
+ */
 export default function Organizations() {
   const [organizations, setOrganizations] = useState<
     OrganizationDirectoryEntry[]

@@ -28,14 +28,20 @@ import ColorAddSymbol, {
   type ColorAddBaseSymbol,
 } from "./accessibility/ColorAddSymbol";
 
-// Responsive navbar coordinating primary navigation, account menus, notifications,
-// and the ColorADD badge with careful mobile animation handling.
+/**
+ * Responsive navbar coordinating primary navigation, account menus, notifications,
+ * and the ColorADD badge with careful mobile animation handling.
+ */
 
 const BRAND_COLORADD_CODES: ColorAddBaseSymbol[] = ["white", "yellow"];
 
 const DEFAULT_MOBILE_MENU_TRANSITION_MS = 260;
 const SCROLL_MOBILE_MENU_TRANSITION_MS = 480;
 
+/**
+ * The main navigation bar component.
+ * Handles responsive layout, user authentication state, and navigation links.
+ */
 export default function Navbar() {
   const { user, logout, isAuthenticated, passwordResetPending } = useAuth();
   const navigate = useNavigate();

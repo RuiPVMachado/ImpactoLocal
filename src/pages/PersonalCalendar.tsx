@@ -17,6 +17,11 @@ import { formatDurationWithHours } from "../lib/formatters";
 
 const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
+/**
+ * Calculates the start of the week (Monday) for a given date.
+ * @param reference The reference date.
+ * @returns The date object representing the start of the week.
+ */
 const getStartOfWeek = (reference: Date): Date => {
   const date = new Date(
     reference.getFullYear(),
@@ -30,6 +35,11 @@ const getStartOfWeek = (reference: Date): Date => {
   return date;
 };
 
+/**
+ * Calculates the end of the week (Sunday) for a given date.
+ * @param reference The reference date.
+ * @returns The date object representing the end of the week.
+ */
 const getEndOfWeek = (reference: Date): Date => {
   const start = getStartOfWeek(reference);
   start.setDate(start.getDate() + 6);
@@ -37,6 +47,11 @@ const getEndOfWeek = (reference: Date): Date => {
   return start;
 };
 
+/**
+ * Formats a date as a string key (YYYY-MM-DD).
+ * @param date The date to format.
+ * @returns The formatted date string.
+ */
 const getDateKey = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -44,6 +59,12 @@ const getDateKey = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+/**
+ * Adds a number of days to a date.
+ * @param date The starting date.
+ * @param days The number of days to add.
+ * @returns The new date object.
+ */
 const addDays = (date: Date, days: number): Date => {
   const result = new Date(date);
   result.setDate(result.getDate() + days);

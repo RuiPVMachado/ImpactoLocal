@@ -26,6 +26,10 @@ const categories = [
 
 const DEFAULT_PAGE_SIZE = 20;
 
+/**
+ * The Events page component.
+ * Displays a list of events with filtering, searching, and pagination.
+ */
 export default function Events() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");

@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { useAccessibility } from "../../context/useAccessibility";
 
+/**
+ * Options for the color mode setting.
+ */
 const colorModeOptions = [
   { value: "auto", label: "Automático" },
   { value: "light", label: "Claro" },
@@ -18,6 +21,9 @@ const colorModeOptions = [
   { value: "high-contrast", label: "Alto contraste" },
 ] as const;
 
+/**
+ * Options for the color palette setting, including color blindness simulations.
+ */
 const colorPaletteOptions = [
   {
     value: "impacto",

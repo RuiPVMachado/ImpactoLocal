@@ -49,6 +49,18 @@ const getActiveDurationLabel = (iso?: string | null): string | null => {
   if (diffMs <= 0) {
     return "menos de 24 horas";
   }
+  // ...existing code...
+};
+
+/**
+ * The Organization Public Profile page component.
+ * Displays public information about an organization, including its mission, history, and events.
+ */
+export default function OrganizationProfilePublic() {
+  const { id } = useParams<{ id: string }>();
+  const [profile, setProfile] = useState<OrganizationPublicProfile | null>(
+    null
+  );
 
   let years = now.getFullYear() - createdAt.getFullYear();
   let months = now.getMonth() - createdAt.getMonth();
@@ -90,7 +102,7 @@ const getActiveDurationLabel = (iso?: string | null): string | null => {
   }
 
   return "menos de 24 horas";
-};
+}
 
 const sanitizeGalleryUrls = (urls?: string[] | null): string[] => {
   if (!Array.isArray(urls)) {

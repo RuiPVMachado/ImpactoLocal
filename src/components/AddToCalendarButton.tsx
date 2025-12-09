@@ -4,14 +4,26 @@ import { CalendarPlus, ExternalLink } from "lucide-react";
 import type { Event } from "../types";
 import { buildGoogleCalendarUrl, hasValidEventDate } from "../lib/calendar";
 
+/**
+ * Props for the AddToCalendarButton component.
+ */
 interface AddToCalendarButtonProps {
+  /** The event object containing details like title, date, and location. */
   event: Event;
+  /** Optional CSS classes to apply to the button. */
   className?: string;
+  /** The visual style of the button (default: "primary"). */
   variant?: "primary" | "ghost";
+  /** The size of the button (default: "md"). */
   size?: "md" | "sm";
+  /** The text label for the button (default: "Adicionar ao calendário"). */
   label?: string;
 }
 
+/**
+ * A button that opens a Google Calendar event creation page pre-filled with event details.
+ * It handles invalid dates gracefully by disabling the button.
+ */
 export default function AddToCalendarButton({
   event,
   className = "",

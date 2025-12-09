@@ -27,6 +27,11 @@ import {
 import type { Application, ApplicationStatus, Event } from "../types";
 import AddToCalendarButton from "../components/AddToCalendarButton";
 
+/**
+ * The Event Details page component.
+ * Displays detailed information about a specific event.
+ * Allows volunteers to apply for the event.
+ */
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

@@ -3,9 +3,15 @@ import type { ReactNode } from "react";
 import { useAuth } from "../context/useAuth";
 import type { UserRole } from "../types";
 
+/**
+ * Props for the ProtectedRoute component.
+ */
 interface ProtectedRouteProps {
+  /** The content to render if the user is authorized. */
   children: ReactNode;
+  /** Optional list of roles allowed to access the route. */
   allowedRoles?: UserRole[];
+  /** The path to redirect to if unauthorized (default: "/login"). */
   redirectTo?: string;
 }
 

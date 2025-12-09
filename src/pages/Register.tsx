@@ -6,6 +6,14 @@ import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 import type { UserRole } from "../types";
 
+/**
+ * Register page component.
+ *
+ * Allows new users to create an account as a volunteer or organization.
+ * Handles form validation, user registration via Supabase Auth, and redirection.
+ *
+ * @returns {JSX.Element} The rendered Register page.
+ */
 export default function Register() {
   const [formData, setFormData] = useState({
     name: "",

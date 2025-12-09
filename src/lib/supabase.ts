@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Single Supabase browser client shared across the application.
+/**
+ * Single Supabase browser client shared across the application.
+ * Initializes the client with environment variables and auth persistence settings.
+ */
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;

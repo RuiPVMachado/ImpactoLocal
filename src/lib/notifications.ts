@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 
-// Wrapper around the send-notification edge function with typed payloads per scenario.
+/**
+ * Wrapper around the send-notification edge function with typed payloads per scenario.
+ */
 
 export type NotificationResult = {
   success: boolean;
@@ -9,6 +11,9 @@ export type NotificationResult = {
 
 // ========== Notification Payloads ==========
 
+/**
+ * Payload for application approved notification.
+ */
 interface ApplicationApprovedPayload {
   type: "application_approved";
   volunteerEmail: string;
@@ -19,6 +24,9 @@ interface ApplicationApprovedPayload {
   organizationEmail?: string;
 }
 
+/**
+ * Payload for application rejected notification.
+ */
 interface ApplicationRejectedPayload {
   type: "application_rejected";
   volunteerEmail: string;
@@ -28,6 +36,9 @@ interface ApplicationRejectedPayload {
   organizationEmail?: string;
 }
 
+/**
+ * Payload for application submitted notification.
+ */
 interface ApplicationSubmittedPayload {
   type: "application_submitted";
   organizationId: string;
@@ -50,6 +61,11 @@ type NotificationPayload =
 
 // ========== Main Function ==========
 
+/**
+ * Sends a notification using the Supabase Edge Function.
+ * @param payload The notification payload containing type and data.
+ * @returns A promise resolving to the notification result.
+ */
 export async function sendNotification(
   payload: NotificationPayload
 ): Promise<NotificationResult> {

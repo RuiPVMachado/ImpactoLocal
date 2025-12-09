@@ -25,6 +25,12 @@ import type {
   VolunteerApplication,
 } from "../types";
 
+/**
+ * Checks if an event has ended based on the current time.
+ * @param application The application associated with the event.
+ * @param referenceTime The current timestamp.
+ * @returns True if the event has ended, false otherwise.
+ */
 const hasEventEnded = (
   application: VolunteerApplication,
   referenceTime: number

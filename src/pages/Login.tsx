@@ -5,6 +5,10 @@ import { Heart, Mail, Lock } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
 
+/**
+ * The Login page component.
+ * Allows users to sign in to their account.
+ */
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

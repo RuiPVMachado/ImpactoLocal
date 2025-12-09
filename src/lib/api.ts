@@ -2,7 +2,14 @@ import { supabase } from "./supabase";
 import { notifyApplicationSubmitted } from "./notifications";
 import { MIN_EVENT_START_LEEWAY_MS } from "./datetime";
 
-// Centralized data-access helpers that wrap Supabase queries and edge functions.
+/**
+ * Centralized data-access helpers that wrap Supabase queries and edge functions.
+ * This module handles all interactions with the backend, including:
+ * - Fetching and updating events
+ * - Managing user profiles and organizations
+ * - Handling volunteer applications
+ * - Admin operations
+ */
 import type {
   AdminMetrics,
   Application,
@@ -21,6 +28,9 @@ import type {
   VolunteerStatistics,
 } from "../types";
 
+/**
+ * Filters for querying events.
+ */
 type EventFilters = {
   category?: string;
   searchTerm?: string;
@@ -30,6 +40,9 @@ type EventFilters = {
   pageSize?: number;
 };
 
+/**
+ * Generic paginated response structure.
+ */
 export type PaginatedResponse<T> = {
   data: T[];
   total: number;

@@ -21,6 +21,11 @@ import type { Event } from "../types";
 
 const DEFAULT_PAGE_SIZE = 20;
 
+/**
+ * The Organization Events page component.
+ * Displays a list of events created by the organization.
+ * Allows creating, editing, and deleting events.
+ */
 export default function OrganizationEvents() {
   const navigate = useNavigate();
   const { user } = useAuth();

@@ -46,6 +46,9 @@ const statusOptions: Array<{ value: Event["status"]; label: string }> = [
   { value: "completed", label: "Concluído" },
 ];
 
+/**
+ * State for the edit event form.
+ */
 type FormState = {
   title: string;
   description: string;
@@ -76,6 +79,11 @@ const formatDateForInput = (iso?: string | null) => {
   return local.toISOString().slice(0, 16);
 };
 
+/**
+ * The Edit Event page component.
+ * Allows organizations to update existing events, including status and post-event details.
+ * Handles fetching event data, form population, and updates.
+ */
 export default function EditEvent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();

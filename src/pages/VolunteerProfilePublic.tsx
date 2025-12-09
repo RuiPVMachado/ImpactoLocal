@@ -15,6 +15,14 @@ import { fetchVolunteerStatistics } from "../lib/api";
 import { fetchProfileById } from "../lib/profiles";
 import type { Profile, VolunteerStatistics } from "../types";
 
+/**
+ * VolunteerProfilePublic page component.
+ *
+ * Displays the public profile of a volunteer.
+ * Shows volunteer statistics and basic information.
+ *
+ * @returns {JSX.Element} The rendered VolunteerProfilePublic page.
+ */
 export default function VolunteerProfilePublic() {
   const { volunteerId } = useParams<{ volunteerId: string }>();
   const navigate = useNavigate();

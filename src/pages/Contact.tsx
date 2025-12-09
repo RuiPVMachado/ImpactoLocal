@@ -13,6 +13,11 @@ const INITIAL_FORM = {
 
 type ContactFormState = typeof INITIAL_FORM;
 
+/**
+ * The Contact page component.
+ * Displays a contact form and contact information.
+ * Handles form submission to the backend.
+ */
 export default function Contact() {
   const [formData, setFormData] = useState<ContactFormState>(INITIAL_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);

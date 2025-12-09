@@ -33,6 +33,10 @@ const faqs = [
   },
 ];
 
+/**
+ * The FAQ page component.
+ * Displays frequently asked questions and answers.
+ */
 export default function FAQ() {
   return (
     <div className="bg-gray-50 min-h-screen">

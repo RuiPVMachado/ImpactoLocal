@@ -48,6 +48,20 @@ type VolunteerPlace = {
 const MAX_VOLUNTEER_RESULTS = 60;
 const VOLUNTEER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 const NEXT_PAGE_DELAY_MS = 200;
+
+/**
+ * The Map Explorer page component.
+ * Allows users to search for events and volunteer opportunities on an interactive map.
+ * Supports drawing custom search areas (polygons and circles).
+ */
+/**
+ * The Map Explorer page component.
+ * Allows users to search for events and volunteer opportunities on an interactive map.
+ * Supports drawing custom search areas (polygons and circles).
+ */
+export default function MapExplorer() {
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
 const VOLUNTEER_FALLBACK_RADIUS_METERS = DEFAULT_SEARCH_RADIUS_METERS;
 
 const MapExplorer = () => {

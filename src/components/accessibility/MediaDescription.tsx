@@ -2,14 +2,26 @@
 import { useEffect, useId, useRef } from "react";
 import { useAccessibility } from "../../context/useAccessibility";
 
+/**
+ * Props for the MediaDescription component.
+ */
 interface MediaDescriptionProps {
+  /** Optional ID for the description element. */
   id?: string;
+  /** The main description text. */
   description: string;
+  /** Title for the captions section (default: "Legenda"). */
   captionTitle?: string;
+  /** List of caption items to display. */
   captionItems?: string[];
+  /** Heading for the description section (default: "Descrição do conteúdo visual"). */
   heading?: string;
 }
 
+/**
+ * A component that provides accessible descriptions and captions for media content.
+ * It can also read the description aloud using the Web Speech API if enabled in settings.
+ */
 export default function MediaDescription({
   id,
   description,

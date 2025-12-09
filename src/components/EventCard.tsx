@@ -5,12 +5,22 @@ import { formatDurationWithHours } from "../lib/formatters";
 import { Event } from "../types";
 import AddToCalendarButton from "./AddToCalendarButton";
 
+/**
+ * Props for the EventCard component.
+ */
 interface EventCardProps {
+  /** The event object to display. */
   event: Event;
+  /** Optional callback function when the card is clicked. */
   onClick?: () => void;
+  /** Whether to show the "Inscrever-se" button (default: true). */
   showApplyButton?: boolean;
 }
 
+/**
+ * A card component that displays a summary of an event.
+ * Includes the event image, title, date, location, and action buttons.
+ */
 export default function EventCard({
   event,
   onClick,

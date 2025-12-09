@@ -5,6 +5,14 @@ import { toast } from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/useAuth";
 
+/**
+ * ResetPassword page component.
+ *
+ * Allows users to set a new password after clicking a recovery link.
+ * Verifies the recovery session and handles password updates.
+ *
+ * @returns {JSX.Element} The rendered ResetPassword page.
+ */
 export default function ResetPassword() {
   const navigate = useNavigate();
   const { updatePassword, authLoading, completePasswordReset } = useAuth();

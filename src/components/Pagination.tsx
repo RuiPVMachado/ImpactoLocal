@@ -1,18 +1,34 @@
 // Accessible pagination control with optional page-size selector.
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+/**
+ * Props for the Pagination component.
+ */
 export interface PaginationProps {
+  /** The current active page (1-based). */
   currentPage: number;
+  /** The total number of pages. */
   totalPages: number;
+  /** Callback function when the page changes. */
   onPageChange: (page: number) => void;
+  /** The number of items per page. */
   pageSize: number;
+  /** The total number of items across all pages. */
   totalItems: number;
+  /** Optional callback when the page size changes. */
   onPageSizeChange?: (pageSize: number) => void;
+  /** Whether to show the page size selector (default: false). */
   showPageSizeSelector?: boolean;
+  /** Options for the page size selector (default: [10, 20, 50, 100]). */
   pageSizeOptions?: number[];
+  /** Optional CSS classes. */
   className?: string;
 }
 
+/**
+ * A pagination component that allows navigating through pages of data.
+ * Supports page size selection and displays current range information.
+ */
 export default function Pagination({
   currentPage,
   totalPages,

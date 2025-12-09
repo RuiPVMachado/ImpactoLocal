@@ -26,6 +26,9 @@ import {
   validateImageFile,
 } from "../lib/storage";
 
+/**
+ * State for the create event form.
+ */
 type FormState = {
   title: string;
   description: string;
@@ -37,6 +40,11 @@ type FormState = {
   volunteersNeeded: string;
 };
 
+/**
+ * The Create Event page component.
+ * Allows organizations to create new volunteer events.
+ * Handles form validation, image upload, and event creation.
+ */
 export default function CreateEvent() {
   const navigate = useNavigate();
   const { user } = useAuth();
