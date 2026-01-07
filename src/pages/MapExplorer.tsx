@@ -86,6 +86,7 @@ const MapExplorer = () => {
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
   const geocodeQueueRef = useRef<Set<string>>(new Set());
   const processedGeocodeRef = useRef<Set<string>>(new Set());
+  const eventAddressesRef = useRef<Map<string, string>>(new Map());
   const volunteerRequestIdRef = useRef(0);
   const volunteerCacheRef = useRef(
     new Map<string, { timestamp: number; places: VolunteerPlace[] }>()
@@ -170,6 +171,22 @@ const MapExplorer = () => {
     }
   }, [isLoaded]);
 
+  // Registar eventos que já têm coordenadas para evitar geocodificação desnecessária
+  useEffect(() => {
+    events.forEach((event) => {
+      const hasCoords =
+        typeof event.location.lat === "number" &&
+        typeof event.location.lng === "number";
+
+      if (hasCoords) {
+        processedGeocodeRef.current.add(event.id);
+      }
+
+      const address = event.location.address?.trim() || "";
+      eventAddressesRef.current.set(event.id, address);
+    });
+  }, [events]);
+
   useEffect(() => {
     if (
       !isLoaded ||
@@ -179,6 +196,36 @@ const MapExplorer = () => {
     ) {
       return;
     }
+
+    // Limpar eventos processados que já não existem
+    const currentEventIds = new Set(events.map((e) => e.id));
+
+    // Remover IDs que já não existem
+    const processedToRemove: string[] = [];
+    processedGeocodeRef.current.forEach((id) => {
+      if (!currentEventIds.has(id)) {
+        processedToRemove.push(id);
+      }
+    });
+    processedToRemove.forEach((id) => {
+      processedGeocodeRef.current.delete(id);
+      eventAddressesRef.current.delete(id);
+    });
+
+    // Detetar mudanças de moradas e remover da lista de processados
+    events.forEach((event) => {
+      const currentAddress = event.location.address?.trim() || "";
+      const previousAddress = eventAddressesRef.current.get(event.id);
+
+      if (previousAddress !== undefined && previousAddress !== currentAddress) {
+        // Morada mudou - remover da lista de processados para reprocessar
+        processedGeocodeRef.current.delete(event.id);
+        geocodeQueueRef.current.delete(event.id);
+      }
+
+      // Atualizar a morada guardada
+      eventAddressesRef.current.set(event.id, currentAddress);
+    });
 
     const queue = events
       .filter((event) => {
