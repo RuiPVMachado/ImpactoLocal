@@ -78,7 +78,7 @@ const formatDate = (iso?: string | null) => {
  * Allows users to view status and cancel applications.
  */
 export default function MyApplications() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -212,7 +212,7 @@ export default function MyApplications() {
   };
 
   const showGlobalLoader =
-    authInitialising || (loading && applications.length === 0);
+    authLoading || (loading && applications.length === 0);
 
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4">
