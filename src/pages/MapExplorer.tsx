@@ -242,11 +242,6 @@ const MapExplorer = () => {
           return false;
         }
 
-        if (geocodeQueueRef.current.has(event.id)) {
-          return false;
-        }
-
-        geocodeQueueRef.current.add(event.id);
         return true;
       })
       .map((event) => ({
@@ -270,10 +265,14 @@ const MapExplorer = () => {
         return;
       }
 
+      geocodeQueueRef.current.add(next.id);
+
       try {
         geocoderRef.current!.geocode(
           { address: next.address },
           (results, status) => {
+            geocodeQueueRef.current.delete(next.id);
+
             if (cancelled) {
               return;
             }
@@ -311,8 +310,6 @@ const MapExplorer = () => {
                 status
               );
             }
-
-            geocodeQueueRef.current.delete(next.id);
 
             if (!cancelled && queue.length > 0) {
               window.setTimeout(processNext, 200);
